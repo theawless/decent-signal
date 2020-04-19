@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "run": "node index.js"
+  },
+  "dependencies": {
+    "decent-signal": "file:../../"
+  }
+}
