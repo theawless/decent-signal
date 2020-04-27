@@ -4,15 +4,11 @@
   "license": "MIT",
   "main": "dist/decent-signal.cjs.js",
   "module": "dist/decent-signal.esm.js",
-  "dependencies": {
-    "sjcl": "latest"
-  },
   "devDependencies": {
-    "rollup": "latest",
-    "@rollup/plugin-inject": "latest"
+    "rollup": "latest"
   },
   "scripts": {
-    "build": "rollup -c"
+    "prepare": "rollup -c"
   },
   "files": [
     "dist"

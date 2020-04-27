@@ -1,0 +1,21 @@
+{
+  "name": "decent-signal-simple-peer",
+  "description": "A decent WebRTC signalling library",
+  "license": "MIT",
+  "main": "dist/decent-signal-simple-peer.cjs.js",
+  "module": "dist/decent-signal-simple-peer.esm.js",
+  "peerDependencies": {
+    "simple-peer": "*",
+    "decent-signal": "*"
+  },
+  "devDependencies": {
+    "rollup": "latest",
+    "@rollup/plugin-inject": "latest"
+  },
+  "scripts": {
+    "prepare": "rollup -c"
+  },
+  "files": [
+    "dist"
+  ]
+}

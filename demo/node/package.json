@@ -1,8 +1,12 @@
 {
   "scripts": {
-    "run": "node index.js"
+    "start": "node --preserve-symlinks server"
   },
   "dependencies": {
-    "decent-signal": "file:../../"
+    "sjcl": "latest",
+    "simple-peer": "latest",
+    "decent-signal": "file:../..",
+    "decent-signal-simple-peer": "file:../../bindings/simple-peer",
+    "decent-signal-sjcl": "file:../../bindings/sjcl"
   }
 }
