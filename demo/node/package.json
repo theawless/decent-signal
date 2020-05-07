@@ -1,12 +1,12 @@
 {
   "scripts": {
-    "start": "node --preserve-symlinks server"
+    "node-1": "node --preserve-symlinks index 1 hello world",
+    "node-2": "node --preserve-symlinks index 2 hello world"
   },
   "dependencies": {
-    "sjcl": "latest",
+    "wrtc": "latest",
     "simple-peer": "latest",
     "decent-signal": "file:../..",
-    "decent-signal-simple-peer": "file:../../bindings/simple-peer",
-    "decent-signal-sjcl": "file:../../bindings/sjcl"
+    "decent-signal-crypto": "file:../../bindings/crypto"
   }
 }

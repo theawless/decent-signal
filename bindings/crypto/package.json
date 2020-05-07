@@ -1,0 +1,19 @@
+{
+  "name": "decent-signal-crypto",
+  "description": "Bindings for node's crypto for decent-signal",
+  "license": "MIT",
+  "main": "dist/decent-signal-crypto.cjs.js",
+  "module": "dist/decent-signal-crypto.esm.js",
+  "peerDependencies": {
+    "decent-signal": "*"
+  },
+  "devDependencies": {
+    "rollup": "latest"
+  },
+  "scripts": {
+    "prepare": "rollup -c"
+  },
+  "files": [
+    "dist"
+  ]
+}
