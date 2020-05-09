@@ -24,9 +24,15 @@ export class DecentSignalCrypto extends DecentSignalCryptography {
         const salt = crypto.randomBytes(32);
         const key = crypto.scryptSync(secret, salt, 32);
         const iv = crypto.randomBytes(16);
-        const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+        const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
         const encrypted = cipher.update(message, "utf8", "hex") + cipher.final("hex");
-        return JSON.stringify({salt: salt.toString("hex"), iv: iv.toString("hex"), encrypted: encrypted});
+        const tag = cipher.getAuthTag();
+        return JSON.stringify({
+            salt: salt.toString("hex"),
+            iv: iv.toString("hex"),
+            encrypted: encrypted,
+            tag: tag.toString("hex")
+        });
     }
 
     /**
@@ -36,9 +42,10 @@ export class DecentSignalCrypto extends DecentSignalCryptography {
      * @returns {Promise<string>} utf8
      */
     async secretDecrypt(secret, message) {
-        const {salt, iv, encrypted} = JSON.parse(message);
+        const {salt, iv, encrypted, tag} = JSON.parse(message);
         const key = crypto.scryptSync(secret, Buffer.from(salt, "hex"), 32);
-        const decipher = crypto.createDecipheriv("aes-256-cbc", key, Buffer.from(iv, "hex"));
+        const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "hex"));
+        decipher.setAuthTag(Buffer.from(tag, "hex"));
         return decipher.update(encrypted, "hex", "utf8") + decipher.final("utf8");
     }
 
