@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "node-1": "node --preserve-symlinks index 1 hello world",
-    "node-2": "node --preserve-symlinks index 2 hello world"
+    "hello-0": "node --preserve-symlinks index 0 hello world",
+    "hello-1": "node --preserve-symlinks index 1 hello world"
   },
   "dependencies": {
     "wrtc": "latest",
