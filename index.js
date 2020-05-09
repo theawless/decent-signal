@@ -1,21 +1,21 @@
 /**
- * Opinionated event emitter for common use. TODO: Should we use a library?
+ * Opinionated event emitter for common use. TODO: Find a library?
  */
-export class DecentSignalEmitter {
+export class DecentSignalEvents {
     /**
-     * The events field is a event to list of handlers map.
+     * The handlers field is a map of event to list of handlers.
      */
     constructor() {
-        this.events = new Map();
+        this._handlers = new Map();
     }
 
     /**
-     * Emit an event.
+     * Emit an event by calling all handlers sequentially.
      * @param {string} event
      * @param {...*} args
      */
     emit(event, ...args) {
-        for (const handler of this.events.get(event) || []) {
+        for (const handler of this._handlers.get(event) || []) {
             handler(...args);
         }
     }
@@ -24,11 +24,11 @@ export class DecentSignalEmitter {
      * Connect to an event.
      * The args to handler will be same as the args passed while emitting the event.
      * @param {string} event
-     * @param {function(...*): void} handler
+     * @param {function(...*): *} handler
      */
     connect(event, handler) {
-        this.events.set(event, this.events.get(event) || []);
-        this.events.get(event).push(handler);
+        this._handlers.set(event, this._handlers.get(event) || []);
+        this._handlers.get(event).push(handler);
     }
 
     /**
@@ -38,13 +38,14 @@ export class DecentSignalEmitter {
      * @param {function(...*): void} handler
      */
     disconnect(event, handler) {
-        this.events.set(event, this.events.get(event).filter(h => h !== handler));
+        const handlers = this._handlers.get(event).filter((h) => h !== handler);
+        this._handlers.set(event, handlers);
     }
 }
 
 /**
  * Abstraction over various encryption methods. TODO: Should we ship with a single implementation?
- * Probably won't need verify/sign because we trust the channel for user authentication.
+ * Probably won"t need verify/sign because we trust the channel for user authentication.
  * The channel should make sure that the sender is who they claim to be.
  */
 export class DecentSignalCryptography {
@@ -56,7 +57,7 @@ export class DecentSignalCryptography {
     }
 
     /**
-     * Encrypt a message.
+     * Encrypt a message with secret.
      * @param {string} secret
      * @param {string} message
      * @returns {Promise<string>}
@@ -65,7 +66,7 @@ export class DecentSignalCryptography {
     }
 
     /**
-     * Decrypt a message.
+     * Decrypt a message with secret.
      * @param {string} secret
      * @param {string} message
      * @returns {Promise<string>}
@@ -81,7 +82,7 @@ export class DecentSignalCryptography {
     }
 
     /**
-     * Encrypt a message.
+     * Encrypt a message with public key.
      * @param {string} key
      * @param {string} message
      * @returns {Promise<string>}
@@ -90,7 +91,7 @@ export class DecentSignalCryptography {
     }
 
     /**
-     * Decrypt a message.
+     * Decrypt a message with private key.
      * @param {string} key
      * @param {string} message
      * @returns {Promise<string>}
@@ -102,25 +103,43 @@ export class DecentSignalCryptography {
 /**
  * Abstraction over a channel where the signalling information will be exchanged.
  * A channel usually corresponds to a room. In a channel we can make multiple parties.
- * This will keep number of channels in check on the server.
+ * This will help keep the number of channels in check on the channel server.
  * Currently this does not handle joining/creating/leaving/deleting a channel. TODO: Should it be added?
  *
- * The event "message-received" is emitted whenever there's new message in the channel.
+ * The event "message-received" is emitted whenever there"s new message in the channel.
  */
 export class DecentSignalChannel {
     /**
      * Implementors need to make the connection ready before calling this.
      */
     constructor() {
-        this.emitter = new DecentSignalEmitter();
+        this.events = new DecentSignalEvents();
     }
 
     /**
      * Send message to the channel.
-     * @param {string} message
+     * @param {DecentSignalMessage} message
      * @returns {Promise<void>}
      */
     async sendMessage(message) {
+    }
+}
+
+/**
+ * Describes how a message should be in the channel.
+ */
+export class DecentSignalMessage {
+    /**
+     * @param party {string}
+     * @param to {DecentSignalUser}
+     * @param type  {"joined" | "handshake" | "signal"}
+     * @param message {string}
+     */
+    constructor(party, to, type, message) {
+        this.party = party;
+        this.to = to;
+        this.type = type;
+        this.message = message;
     }
 }
 
@@ -131,11 +150,11 @@ export class DecentSignalUser {
     /**
      * User id should be unique in the channel.
      * @param id {string}
-     * @param data {*}
+     * @param info {*}
      */
-    constructor(id, data) {
+    constructor(id, info) {
         this.id = id;
-        this.data = data;
+        this.info = info;
     }
 }
 
@@ -144,6 +163,7 @@ export class DecentSignalUser {
  */
 export class DecentSignalNode {
     /**
+     * The private key is undefined for all nodes except the current one.
      * @param user {DecentSignalUser}
      * @param key {{public: string, private: string}}
      */
@@ -155,15 +175,19 @@ export class DecentSignalNode {
 
 /**
  * Currently this does not handle connection offer/response creation. TODO: Should it be added?
- * The party creator will always join before other members, hence they will get all node discovery events.
  * There are no events for node disconnected because:
- * 1. if the node was never connected to then it doesn't matter if they left
+ * 1. if the node was never connected to then it doesn"t matter if they left
  * 2. if the node was connected then the disconnected event is not a part of signalling data
  *
- * The event "node-discovered" is emitted whenever there's new node in the party.
+ * The event "node-discovered" is emitted whenever there"s new node in the party.
  * The event "signal-received" is emitted whenever a node is sending signalling data.
  *
- * TODO: All types of chanell messages that this class sends should be documented.
+ * There might be security faults in how we are using the cryptography concepts here. TODO: Find a library?
+ * The assumptions for this code are:
+ * 1. Only the users that want to join a party know the shared secret (pre shared through other medium)
+ * 2. The users within a party can read each others public keys and send encrypted messages to each other
+ * 3. All public keys in a party are encrypted using the shared secret
+ * 4. The channel makes sure that a user is not pretending to be other user
  */
 export class DecentSignal {
     /**
@@ -174,14 +198,12 @@ export class DecentSignal {
      */
     constructor(user, channel, crypto, options) {
         this.node = new DecentSignalNode(user, undefined);
-        this.crypto = crypto;
-        this.channel = channel;
-        this.options = options;
-        this.nodes = [];
-        this.emitter = new DecentSignalEmitter();
-        this.onMessageReceived = (from, message) => {
-            this.receiveMessage(from, message).then();
-        };
+        this._crypto = crypto;
+        this._channel = channel;
+        this._options = options;
+        this.nodes = new Map(); // map of user id to node
+        this.events = new DecentSignalEvents();
+        this._onMessageReceived = (from, message) => this._handleMessage(from, message).then();
     }
 
     /**
@@ -191,28 +213,11 @@ export class DecentSignal {
      * @returns {Promise<void>}
      */
     async startSignalling() {
-        this.node.key = await this.crypto.generateKeyPair();
-        this.channel.emitter.connect("message-received", this.onMessageReceived);
-        await this.sendPublicKey();
-    }
-
-    /**
-     * Send current node's public key to the channel.
-     * @returns {Promise<void>}
-     */
-    async sendPublicKey() {
-        const stuff = await this.crypto.secretEncrypt(this.options.password, this.node.key.public);
-        const message = JSON.stringify({party: this.options.party, to: undefined, stuff: stuff});
-        await this.channel.sendMessage(message);
-    }
-
-    /**
-     * Find the node associated with the given user.
-     * @param user {DecentSignalUser}
-     * @returns {Promise<DecentSignalNode>}
-     */
-    findNode(user) {
-        return this.nodes.find(n => n.user.id === user.id);
+        this._channel.events.connect("message-received", this._onMessageReceived);
+        const [pair, _] = await Promise.all([
+            await this._crypto.generateKeyPair(), await this._sendJoinedNotification()
+        ]);
+        this.node.key = pair;
     }
 
     /**
@@ -220,69 +225,170 @@ export class DecentSignal {
      * @returns {Promise<void>}
      */
     async stopSignalling() {
-        this.channel.emitter.disconnect("message-received", this.onMessageReceived);
+        this._channel.events.disconnect("message-received", this._onMessageReceived);
     }
 
     /**
-     * Send signalling data {party, to, stuff} to a node in the party after encryption.
+     * Send current node"s joined notification to everyone in the party.
+     * The message is data + its encryption. Other nodes can decrypt and verify whether the secret is correct.
+     * @returns {Promise<void>}
+     */
+    async _sendJoinedNotification() {
+        const data = await this._crypto.generateSecret();
+        const encrypted = await this._crypto.secretEncrypt(this._options.password, data);
+        const message = JSON.stringify({encrypted: encrypted, data: data});
+        await this._channel.sendMessage(new DecentSignalMessage(this._options.party, undefined, "joined", message));
+    }
+
+    /**
+     * Send current node"s encrypted public key to the user.
+     * Note that other nodes can also see this key but it doesn"t matter because it"s public key.
      * @param user {DecentSignalUser}
+     * @returns {Promise<void>}
+     */
+    async _sendPublicKey(user) {
+        const key = await this._crypto.secretEncrypt(this._options.password, this.node.key.public);
+        await this._channel.sendMessage(new DecentSignalMessage(this._options.party, user, "handshake", key));
+    }
+
+    /**
+     * Send signalling data to a node in the party after encryption.
+     * @param node {DecentSignalNode}
      * @param data {string}
      * @returns {Promise<void>}
      */
-    async sendSignallingData(user, data) {
-        const node = this.findNode(user);
-        const secret = await this.crypto.generateSecret();
-        const encrypted_secret = await this.crypto.publicEncrypt(node.key.public, secret);
-        const encrypted_data = await this.crypto.secretEncrypt(secret, data);
-        const stuff = JSON.stringify({secret: encrypted_secret, data: encrypted_data})
-        const message = JSON.stringify({party: this.options.party, to: user.id, stuff: stuff});
-        await this.channel.sendMessage(message);
+    async sendSignal(node, data) {
+        const secret = await this._crypto.generateSecret();
+        const results = await Promise.all([
+            this._crypto.publicEncrypt(node.key.public, secret),
+            this._crypto.secretEncrypt(secret, data)
+        ]);
+        const message = JSON.stringify({secret: results[0], data: results[1]});
+        await this._channel.sendMessage(new DecentSignalMessage(this._options.party, node.user, "signal", message));
     }
 
     /**
      * Handler for message received signal from the channel.
      * @param from {DecentSignalUser}
-     * @param message {string} {party, to, stuff}
+     * @param message {DecentSignalMessage}
      */
-    async receiveMessage(from, message) {
-        try {
-            const {party, to, stuff} = JSON.parse(message);
-            if (party === this.options.party) {
-                const node = this.findNode(from);
-                if (to === undefined && from.id !== this.node.user.id) {
-                    // the message is the encrypted public key of the sending member
-                    try {
-                        if (node === undefined) {
-                            const key = await this.crypto.secretDecrypt(this.options.password, stuff);
-                            const node = new DecentSignalNode(from, {public: key, private: undefined});
-                            this.nodes.push(node);
-                            await this.sendPublicKey();
-                            // TODO: Do a handshake before node discovery.
-                            // ultra hack. we want to wait for the public key to actually be sent to the channel
-                            // before sending out this event, otherwise the client might start sending signalling data
-                            setTimeout(() => this.emitter.emit("node-discovered", from), 2000);
-                        }
-                    } catch (e) {
-                        console.info(`User ${from.id} did not properly encrypt their public key.`, e)
-                    }
-                } else if (to === this.node.user.id) {
-                    // the message is meant for the current node
-                    if (node !== undefined) {
-                        try {
-                            const {secret, data} = JSON.parse(stuff);
-                            const plain_secret = await this.crypto.privateDecrypt(this.node.key.private, secret);
-                            const plain_data = await this.crypto.secretDecrypt(plain_secret, data);
-                            this.emitter.emit("signal-received", from, plain_data);
-                        } catch (e) {
-                            console.info(`User ${from.id} did not properly encrypt their signalling data.`, e)
-                        }
-                    } else {
-                        console.info(`User ${from.id} did not yet send their public key.`);
-                    }
-                }
-            }
-        } catch (e) {
-            console.info(`User ${from.id} sent a malformed message.`, e);
+    async _handleMessage(from, message) {
+        if (message.party !== this._options.party) {
+            return;
         }
+        if (message.to === undefined && from.id !== this.node.user.id) {
+            try {
+                await this._handlePartyMessage(from, message);
+            } catch (e) {
+                console.log("Error occurred trying to handle the party message.", e);
+            }
+        } else if (message.to.id === this.node.user.id) {
+            try {
+                await this._handleUserMessage(from, message);
+            } catch (e) {
+                console.log("Error occurred trying to handle the user message.", e);
+            }
+        }
+    }
+
+    /**
+     * Handle message that was sent in the party for all users.
+     * @param from {DecentSignalUser}
+     * @param message {DecentSignalMessage}
+     * @returns {Promise<void>}
+     */
+    async _handlePartyMessage(from, message) {
+        if (message.type !== "joined") {
+            console.log(`User ${from.id} is trying to send weird data to all nodes.`);
+            return;
+        }
+        const node = this.nodes.get(from.id);
+        if (node !== undefined) {
+            console.log(`User ${from.id} is trying to send joined notification multiple times.`);
+            return;
+        }
+        await this.handleJoinedMessage(from, message);
+    }
+
+    /**
+     * Handle message that was sent in the party for the current node.
+     * @param from {DecentSignalUser}
+     * @param message {DecentSignalMessage}
+     * @returns {Promise<void>}
+     */
+    async _handleUserMessage(from, message) {
+        const node = this.nodes.get(from.id);
+        if (node === undefined) {
+            if (message.type !== "handshake") {
+                console.log(`User ${from.id} is sending weird data to our node.`);
+                return;
+            }
+            await this.handleHandshakeFirstMessage(from, message);
+        } else {
+            if (message.type === "handshake") {
+                await this.handleHandshakeSecondMessage(node, message);
+            } else if (message.type === "signal") {
+                await this.handleSignalMessage(node, message);
+            } else {
+                console.log(`User ${from.id} is sending weird data to our node.`);
+            }
+        }
+    }
+
+    /**
+     * Handle the joined message.
+     * TODO: We can ask the user if we really need to start handshake.
+     * @param from {DecentSignalUser}
+     * @param message {DecentSignalMessage}
+     * @returns {Promise<void>}
+     */
+    async handleJoinedMessage(from, message) {
+        const joined = JSON.parse(message.message);
+        const data = await this._crypto.secretDecrypt(this._options.password, joined.encrypted);
+        if (data !== joined.data) {
+            console.log(`Either password for user ${from.id} is wrong, or our password is wrong.`);
+            return;
+        }
+        this.nodes.set(from.id, new DecentSignalNode(from, undefined));
+        await this._sendPublicKey(from);
+    }
+
+    /**
+     * Handle the handshake started message.
+     * @param from {DecentSignalUser}
+     * @param message {DecentSignalMessage}
+     * @returns {Promise<void>}
+     */
+    async handleHandshakeFirstMessage(from, message) {
+        const key = await this._crypto.secretDecrypt(this._options.password, message.message);
+        const node = new DecentSignalNode(from, {public: key, private: undefined});
+        this.nodes.set(from.id, node);
+        this.events.emit("node-discovered", node);
+        await this._sendPublicKey(from);
+    }
+
+    /**
+     * Handle the handshake completed message.
+     * @param node {DecentSignalNode}
+     * @param message {DecentSignalMessage}
+     * @returns {Promise<void>}
+     */
+    async handleHandshakeSecondMessage(node, message) {
+        const key = await this._crypto.secretDecrypt(this._options.password, message.message);
+        node.key = {public: key, private: undefined};
+        this.events.emit("node-discovered", node);
+    }
+
+    /**
+     * Handle the signal message from another node.
+     * @param node {DecentSignalNode}
+     * @param message {DecentSignalMessage}
+     * @returns {Promise<void>}
+     */
+    async handleSignalMessage(node, message) {
+        const signal = JSON.parse(message.message);
+        const secret = await this._crypto.privateDecrypt(this.node.key.private, signal.secret);
+        const data = await this._crypto.secretDecrypt(secret, signal.data);
+        this.events.emit("signal-received", node, data);
     }
 }
