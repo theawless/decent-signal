@@ -179,6 +179,7 @@ export class DecentSignalNode {
  * 1. if the node was never connected to then it doesn"t matter if they left
  * 2. if the node was connected then the disconnected event is not a part of signalling data
  *
+ * The event "user-seen" is emitted whenever a user is trying to join the party.
  * The event "node-discovered" is emitted whenever there"s new node in the party.
  * The event "signal-received" is emitted whenever a node is sending signalling data.
  *
@@ -276,17 +277,23 @@ export class DecentSignal {
         if (message.party !== this._options.party) {
             return;
         }
-        if (message.to === undefined && from.id !== this.node.user.id) {
+        if (message.to === undefined) {
+            if (from.id === this.node.user.id) {
+                return;
+            }
             try {
                 await this._handlePartyMessage(from, message);
             } catch (e) {
-                console.log("Error occurred trying to handle the party message.", e);
+                console.log(`Error occurred trying to handle party message from user ${from.id}.`);
             }
-        } else if (message.to.id === this.node.user.id) {
+        } else {
+            if (message.to.id !== this.node.user.id) {
+                return;
+            }
             try {
                 await this._handleUserMessage(from, message);
             } catch (e) {
-                console.log("Error occurred trying to handle the user message.", e);
+                console.log(`Error occurred trying to handle targeted message from user ${from.id}.`);
             }
         }
     }
@@ -336,8 +343,8 @@ export class DecentSignal {
     }
 
     /**
-     * Handle the joined message.
-     * TODO: We can ask the user if we really need to start handshake.
+     * Handle the joined message and send our user a "user-seen" signal.
+     * The user can then choose to use the callback to perform the handshake.
      * @param from {DecentSignalUser}
      * @param message {DecentSignalMessage}
      * @returns {Promise<void>}
@@ -349,22 +356,29 @@ export class DecentSignal {
             console.log(`Either password for user ${from.id} is wrong, or our password is wrong.`);
             return;
         }
-        this.nodes.set(from.id, new DecentSignalNode(from, undefined));
-        await this._sendPublicKey(from);
+        const doHandshake = () => {
+            this.nodes.set(from.id, new DecentSignalNode(from, undefined));
+            this._sendPublicKey(from).then();
+        };
+        this.events.emit("user-seen", from, doHandshake);
     }
 
     /**
-     * Handle the handshake started message.
+     * Handle the handshake started message and send our user a "user-seen" signal.
+     * The user can then choose to use the callback to perform the handshake.
      * @param from {DecentSignalUser}
      * @param message {DecentSignalMessage}
      * @returns {Promise<void>}
      */
     async handleHandshakeFirstMessage(from, message) {
         const key = await this._crypto.secretDecrypt(this._options.password, message.message);
-        const node = new DecentSignalNode(from, {public: key, private: undefined});
-        this.nodes.set(from.id, node);
-        this.events.emit("node-discovered", node);
-        await this._sendPublicKey(from);
+        const doHandshake = () => {
+            const node = new DecentSignalNode(from, {public: key, private: undefined});
+            this.nodes.set(from.id, node);
+            this.events.emit("node-discovered", node);
+            this._sendPublicKey(from).then();
+        };
+        this.events.emit("user-seen", from, doHandshake);
     }
 
     /**
