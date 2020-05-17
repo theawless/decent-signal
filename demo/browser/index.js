@@ -6,7 +6,6 @@ import {
 import {DecentSignalSubtleCrypto} from "../../adapters/subtle-crypto/dist/decent-signal-adapter-subtle-crypto.esm.js";
 
 /**
- * TODO: Do not use simple peer here. Try to demonstrate that decent-signal is not dependent on it.
  * Demo app for browser. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
  * Serve and open the urls nodes in README to see them perform signalling and then say hi! to each other.
  * Each user rejects to do handshake with a user that is on same priority. If x1 > x2 then x2 is the initiator.
@@ -73,18 +72,44 @@ class HelloWorld {
      * @returns {Promise<void>}
      */
     async _handleDiscovery(node) {
-        const peer = new SimplePeer({initiator: this._user.rank - node.user.rank < 0});
+        const peer = new RTCPeerConnection();
         this._peers.set(node.user.id, peer);
-        peer.on("signal", (data) => {
-            this._signal.sendSignal(node, JSON.stringify(data)).then();
-        });
-        peer.on("connect", () => {
-            peer.send(`Hello from ${this._user.id}!`);
-        });
-        peer.on("data", data => {
-            console.log(`Got a message: "${data}".`);
-        });
+        peer.onicecandidate = (event) => {
+            if (event.candidate) {
+                this._signal.sendSignal(node, JSON.stringify({"ice": event.candidate})).then();
+            }
+        };
+        if (this._user.rank - node.user.rank < 0) { // initiator
+            peer.onnegotiationneeded = () => {
+                peer.createOffer().then((desc) => this._setupDescription(node, peer, desc).then());
+            };
+            this._setupChat(peer.createDataChannel("chat"));
+        } else {
+            peer.ondatachannel = (event) => {
+                this._setupChat(event.channel);
+            };
+        }
     }
+
+    /**
+     * Setup local description and send it.
+     * @param node {DecentSignalNode}
+     * @param peer {RTCPeerConnection}
+     * @param desc {RTCSessionDescription | RTCSessionDescriptionInit}
+     */
+    async _setupDescription(node, peer, desc) {
+        await peer.setLocalDescription(desc);
+        await this._signal.sendSignal(node, JSON.stringify({"sdp": peer.localDescription}));
+    }
+
+    /**
+     * Connect to various events of data channel.
+     * @param chat {RTCDataChannel}
+     */
+    _setupChat(chat) {
+        chat.onmessage = (event) => console.log(`Got a message: "${event.data}".`);
+        chat.onopen = (_) => chat.send(`Hello from ${this._user.id}!`);
+    };
 
     /**
      * @param node {DecentSignalNode}
@@ -93,7 +118,18 @@ class HelloWorld {
      */
     async _handleSignal(node, data) {
         const peer = this._peers.get(node.user.id);
-        peer.signal(JSON.parse(data));
+        const message = JSON.parse(data);
+        if (message.sdp) {
+            await peer.setRemoteDescription(new RTCSessionDescription(message.sdp));
+            if (peer.remoteDescription.type === "offer") {
+                const desc = await peer.createAnswer();
+                await this._setupDescription(node, peer, desc);
+            }
+        } else if (message.ice) {
+            await peer.addIceCandidate(new RTCIceCandidate(message.ice));
+        } else {
+            console.log(`Received weird signalling data from user ${node.user.id}.`);
+        }
     }
 }
 
