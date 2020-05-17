@@ -1,29 +1,32 @@
-const {DecentSignal, DecentSignalNode, DecentSignalUser} = require("@decent-signal/decent-signal");
-const {DecentSignalNodeCrypto} = require("@decent-signal/adapter-node-crypto");
-const {LocalChat} = require("./chat");
 const wrtc = require("wrtc");
 const Peer = require("simple-peer");
+const RxDB = require("rxdb");
+const snappy = require("pouchdb-adapter-snappy");
+const {DecentSignal, DecentSignalNode} = require("@decent-signal/decent-signal");
+const {DecentSignalNodeCrypto} = require("@decent-signal/adapter-node-crypto");
+const {DecentSignalLocalChat, DecentSignalLocalChatUser} = require("@decent-signal/adapter-local-chat");
 
 /**
  * Demo app for node. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
- * Run the scripts from package.json to see them perform signalling and then hi! to each other.
- * Each node has a name like "x#y" where x is the priority of this node (master/slave/etc), and y is the user id.
- * Each user rejects to do handshake with a user that is on same priority.
- * If x1 > x2 then that means x2 should've joined the channel earlier, and x2 can be the initiator for signalling.
+ * Run the scripts from package.json to see them perform signalling and then say hi! to each other.
+ * Each user rejects to do handshake with a user that is on same rank. If x1 > x2 then x2 is the initiator.
+ *
+ * Snappy was the only plugin that supports database access from multiple processes.
+ * Even the node-websql plugin did not work as documented on rxdb website.
  */
 class HelloWorld {
     /**
-     * Read the inputs from program arguments.
+     * @param id {string}
+     * @param rank {number}
+     * @param party {string}
+     * @param pass {string}
      */
-    constructor() {
+    constructor(id, rank, party, pass) {
+        RxDB.addRxPlugin(snappy);
         this._crypto = new DecentSignalNodeCrypto();
-        this._user = new DecentSignalUser(process.argv[2], undefined);
-        this._chat = new LocalChat(this._user, "channel");
-        this._signal = new DecentSignal(this._user, this._chat, this._crypto, {
-            party: process.argv[3],
-            password: process.argv[4]
-        });
-        this._rank = (user) => parseInt(user.id.split("#")[0]);
+        this._user = new DecentSignalLocalChatUser(id, rank);
+        this._chat = new DecentSignalLocalChat(this._user, "channel", "snappy");
+        this._signal = new DecentSignal(this._user, this._chat, this._crypto, {party: party, password: pass});
         this._peers = new Map(); // map of user id to peer
         this._onUserSeen = (user, accept) => this._handleSeen(user, accept).then();
         this._onNodeDiscovery = (node) => this._handleDiscovery(node).then();
@@ -49,20 +52,20 @@ class HelloWorld {
     async stop() {
         this._signal.events.disconnect("signal-received", this._onSignalReceived);
         this._signal.events.disconnect("node-discovered", this._onNodeDiscovery);
-        this._signal.events.connect("user-seen", this._onUserSeen);
+        this._signal.events.disconnect("user-seen", this._onUserSeen);
         await this._signal.stopSignalling();
         await this._chat.leaveChannel();
     }
 
     /**
      * Decide whether we want to do handshake with the user.
-     * @param user {DecentSignalUser}
+     * @param user {DecentSignalLocalChatUser}
      * @param accept {function() : void}
      * @returns {Promise<void>}
      */
     async _handleSeen(user, accept) {
-        const diff = this._rank(this._user) - this._rank(user);
-        if (diff === 0) {
+        if (this._user.rank === user.rank) {
+            console.log(`Skipping handshake for user ${user.id}.`);
             return;
         }
         accept();
@@ -74,8 +77,7 @@ class HelloWorld {
      * @returns {Promise<void>}
      */
     async _handleDiscovery(node) {
-        const diff = this._rank(this._user) - this._rank(node.user);
-        const peer = new Peer({wrtc: wrtc, initiator: diff < 0});
+        const peer = new Peer({wrtc: wrtc, initiator: this._user.rank - node.user.rank < 0});
         this._peers.set(node.user.id, peer);
         peer.on("signal", (data) => {
             this._signal.sendSignal(node, JSON.stringify(data)).then();
@@ -104,7 +106,7 @@ class HelloWorld {
  * @returns {Promise<void>}
  */
 async function main() {
-    const demo = new HelloWorld();
+    const demo = new HelloWorld(process.argv[2], parseInt(process.argv[3]), process.argv[4], process.argv[5]);
     await demo.start();
     process.on("SIGINT", () => demo.stop().then(() => process.exit()));
 }

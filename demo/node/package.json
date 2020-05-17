@@ -1,12 +1,12 @@
 {
   "scripts": {
-    "node-0011": "node --preserve-symlinks index 0#0 party1 pass1",
-    "node-1111": "node --preserve-symlinks index 1#1 party1 pass1",
-    "node-1212": "node --preserve-symlinks index 1#2 party1 pass2",
-    "node-1311": "node --preserve-symlinks index 1#3 party1 pass1",
-    "node-0122": "node --preserve-symlinks index 0#1 party2 pass2",
-    "node-0221": "node --preserve-symlinks index 0#2 party2 pass1",
-    "node-1022": "node --preserve-symlinks index 1#0 party2 pass2"
+    "node-0011": "node --preserve-symlinks index 0 0 party1 pass1",
+    "node-1111": "node --preserve-symlinks index 1 1 party1 pass1",
+    "node-2112": "node --preserve-symlinks index 2 1 party1 pass2",
+    "node-3111": "node --preserve-symlinks index 3 1 party1 pass1",
+    "node-0122": "node --preserve-symlinks index 0 1 party2 pass2",
+    "node-1022": "node --preserve-symlinks index 1 0 party2 pass2",
+    "node-2021": "node --preserve-symlinks index 2 0 party2 pass1"
   },
   "dependencies": {
     "wrtc": "latest",
@@ -15,6 +15,7 @@
     "rxjs": "latest",
     "pouchdb-adapter-snappy": "latest",
     "@decent-signal/decent-signal": "file:../..",
+    "@decent-signal/adapter-local-chat": "file:../../adapters/local-chat",
     "@decent-signal/adapter-node-crypto": "file:../../adapters/node-crypto"
   }
 }
