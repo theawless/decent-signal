@@ -14,7 +14,7 @@
     "rxdb": "latest",
     "rxjs": "latest",
     "pouchdb-adapter-snappy": "latest",
-    "decent-signal": "file:../..",
-    "decent-signal-crypto": "file:../../bindings/crypto"
+    "@decent-signal/decent-signal": "file:../..",
+    "@decent-signal/adapter-node-crypto": "file:../../adapters/node-crypto"
   }
 }

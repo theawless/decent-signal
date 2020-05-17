@@ -1,9 +1,8 @@
 {
-  "name": "decent-signal-crypto",
-  "description": "Bindings for node's crypto for decent-signal",
+  "name": "@decent-signal/adapter-node-crypto",
+  "description": "Adapter for node's crypto for decent-signal",
   "license": "MIT",
-  "main": "dist/decent-signal-crypto.cjs.js",
-  "module": "dist/decent-signal-crypto.esm.js",
+  "main": "dist/decent-signal-adapter-node-crypto.cjs.js",
   "peerDependencies": {
     "decent-signal": "*"
   },

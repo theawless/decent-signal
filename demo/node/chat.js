@@ -1,4 +1,4 @@
-const {DecentSignalChannel, DecentSignalMessage, DecentSignalUser} = require("decent-signal");
+const {DecentSignalChannel, DecentSignalMessage, DecentSignalUser} = require("@decent-signal/decent-signal");
 const RxDB = require("rxdb");
 const snappy = require("pouchdb-adapter-snappy");
 

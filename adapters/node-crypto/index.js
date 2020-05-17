@@ -1,24 +1,24 @@
-import {DecentSignalCryptography} from "../../dist/decent-signal.esm.js";
-import crypto from "crypto";
+const crypto = require("crypto");
+const {DecentSignalCryptography} = require("@decent-signal/decent-signal");
 
 /**
- * Implementation that uses node's built in crypto.
- * Maybe can use some of the crypto async functions here instead of sync.
+ * Cryptography functions that use node's built in crypto.
+ * TODO: can use some of the crypto async functions here instead of sync.
  */
-export class DecentSignalCrypto extends DecentSignalCryptography {
+export class DecentSignalNodeCrypto extends DecentSignalCryptography {
     /**
-     * Generate a random secret.
+     * Generate a secret randomly.
      * @returns {Promise<string>} hex
      */
     async generateSecret() {
-        return crypto.randomBytes(32).toString("hex");
+        return crypto.randomBytes(64).toString("hex");
     }
 
     /**
-     * Encrypt a message by creating a key using scrypt and using aes.
+     * Encrypt a message by creating a key using scrypt and performing AES.
      * @param {string} secret utf8
      * @param {string} message utf8
-     * @returns {Promise<string>} {salt, iv, encrypted} all hex encoded
+     * @returns {Promise<string>} {salt, iv, encrypted, tag} all hex encoded
      */
     async secretEncrypt(secret, message) {
         const salt = crypto.randomBytes(32);
@@ -36,9 +36,9 @@ export class DecentSignalCrypto extends DecentSignalCryptography {
     }
 
     /**
-     * Decrypt a message by creating a key using scrypt and using aes.
+     * Decrypt a message by creating a key using scrypt and performing AES.
      * @param {string} secret utf8
-     * @param {string} message {salt, iv, encrypted} all hex encoded
+     * @param {string} message {salt, iv, encrypted, tag} all hex encoded
      * @returns {Promise<string>} utf8
      */
     async secretDecrypt(secret, message) {
@@ -54,17 +54,17 @@ export class DecentSignalCrypto extends DecentSignalCryptography {
      * @returns {Promise<{public: string, private: string}>} pem encoded keys
      */
     async generateKeyPair() {
-        const {publicKey, privateKey} = crypto.generateKeyPairSync('rsa', {
+        const {publicKey, privateKey} = crypto.generateKeyPairSync("rsa", {
             modulusLength: 4096,
-            publicKeyEncoding: {type: 'spki', format: 'pem'},
-            privateKeyEncoding: {type: 'pkcs8', format: 'pem'}
+            publicKeyEncoding: {type: "spki", format: "pem"},
+            privateKeyEncoding: {type: "pkcs8", format: "pem"}
         });
         return {public: publicKey, private: privateKey};
     }
 
     /**
      * Encrypt a message using RSA public key.
-     * @param {string} key pem encoded
+     * @param {string} key pem
      * @param {string} message utf8
      * @returns {Promise<string>} hex
      */
@@ -74,7 +74,7 @@ export class DecentSignalCrypto extends DecentSignalCryptography {
 
     /**
      * Decrypt a message using RSA private key.
-     * @param {string} key pem encoded
+     * @param {string} key pem
      * @param {string} message hex
      * @returns {Promise<string>} utf8
      */

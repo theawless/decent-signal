@@ -47,6 +47,7 @@ export class DecentSignalEvents {
  * Abstraction over various encryption methods. TODO: Should we ship with a single implementation?
  * Probably won"t need verify/sign because we trust the channel for user authentication.
  * The channel should make sure that the sender is who they claim to be.
+ * TODO: Should all implementations use the same algorithms? Then we can signal even between node and browser.
  */
 export class DecentSignalCryptography {
     /**

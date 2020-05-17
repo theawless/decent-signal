@@ -1,5 +1,5 @@
-const {DecentSignal, DecentSignalNode, DecentSignalUser} = require("decent-signal");
-const {DecentSignalCrypto} = require("decent-signal-crypto");
+const {DecentSignal, DecentSignalNode, DecentSignalUser} = require("@decent-signal/decent-signal");
+const {DecentSignalNodeCrypto} = require("@decent-signal/adapter-node-crypto");
 const {LocalChat} = require("./chat");
 const wrtc = require("wrtc");
 const Peer = require("simple-peer");
@@ -16,7 +16,7 @@ class HelloWorld {
      * Read the inputs from program arguments.
      */
     constructor() {
-        this._crypto = new DecentSignalCrypto();
+        this._crypto = new DecentSignalNodeCrypto();
         this._user = new DecentSignalUser(process.argv[2], undefined);
         this._chat = new LocalChat(this._user, "channel");
         this._signal = new DecentSignal(this._user, this._chat, this._crypto, {
