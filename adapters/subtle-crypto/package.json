@@ -1,0 +1,18 @@
+{
+  "name": "@decent-signal/adapter-subtle-crypto",
+  "description": "Adapter for subtle crypto for decent-signal",
+  "license": "MIT",
+  "module": "dist/decent-signal-adapter-subtle-crypto.esm.js",
+  "peerDependencies": {
+    "decent-signal": "*"
+  },
+  "devDependencies": {
+    "rollup": "latest"
+  },
+  "scripts": {
+    "prepare": "rollup -c"
+  },
+  "files": [
+    "dist"
+  ]
+}

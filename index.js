@@ -151,11 +151,9 @@ export class DecentSignalUser {
     /**
      * User id should be unique in the channel.
      * @param id {string}
-     * @param info {*}
      */
-    constructor(id, info) {
+    constructor(id) {
         this.id = id;
-        this.info = info;
     }
 }
 
