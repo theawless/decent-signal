@@ -12,7 +12,7 @@ const {DecentSignalLocalChat, DecentSignalLocalChatUser} = require("@decent-sign
  * Each user rejects to do handshake with a user that is on same rank. If x1 > x2 then x2 is the initiator.
  *
  * Snappy was the only plugin that supports database access from multiple processes.
- * Even the node-websql plugin did not work as documented on rxdb website.
+ * Even the node-websql plugin did not work as documented on the rxdb website.
  */
 class HelloWorld {
     /**

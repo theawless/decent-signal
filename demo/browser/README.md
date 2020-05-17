@@ -1,4 +1,4 @@
-## Browser demo
+# Browser demo
 
 * Serve with `npx serve` in the root directory
 * Open [node-0011](http://localhost:5000/demo/browser/?id=0&rank=0&party=party1&pass=pass1)

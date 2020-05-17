@@ -44,14 +44,14 @@ export class DecentSignalEvents {
 }
 
 /**
- * Abstraction over various encryption methods. TODO: Should we ship with a single implementation?
- * Probably won"t need verify/sign because we trust the channel for user authentication.
+ * Abstraction over various encryption methods.
+ * Probably won't need verify/sign because we trust the channel for user authentication.
  * The channel should make sure that the sender is who they claim to be.
  * TODO: Should all implementations use the same algorithms? Then we can signal even between node and browser.
  */
 export class DecentSignalCryptography {
     /**
-     * Generate a random secret.
+     * Generate a secret randomly.
      * @returns {Promise<string>}
      */
     async generateSecret() {
@@ -107,11 +107,11 @@ export class DecentSignalCryptography {
  * This will help keep the number of channels in check on the channel server.
  * Currently this does not handle joining/creating/leaving/deleting a channel. TODO: Should it be added?
  *
- * The event "message-received" is emitted whenever there"s new message in the channel.
+ * The event "message-received" is emitted whenever there's new message in the channel.
  */
 export class DecentSignalChannel {
     /**
-     * Implementors need to make the connection ready before calling this.
+     * Implementors can use this events field.
      */
     constructor() {
         this.events = new DecentSignalEvents();
@@ -174,15 +174,15 @@ export class DecentSignalNode {
 
 /**
  * Currently this does not handle connection offer/response creation. TODO: Should it be added?
- * There are no events for node disconnected because:
- * 1. if the node was never connected to then it doesn"t matter if they left
- * 2. if the node was connected then the disconnected event is not a part of signalling data
  *
  * The event "user-seen" is emitted whenever a user is trying to join the party.
  * The event "node-discovered" is emitted whenever there"s new node in the party.
  * The event "signal-received" is emitted whenever a node is sending signalling data.
  *
- * There might be security faults in how we are using the cryptography concepts here. TODO: Find a library?
+ * There are no events for node disconnected because:
+ * 1. if the node was never connected to then it doesn"t matter if they left
+ * 2. if the node was connected then the disconnected event is not a part of signalling data
+ *
  * The assumptions for this code are:
  * 1. Only the users that want to join a party know the shared secret (pre shared through other medium)
  * 2. The users within a party can read each others public keys and send encrypted messages to each other
@@ -229,7 +229,7 @@ export class DecentSignal {
     }
 
     /**
-     * Send current node"s joined notification to everyone in the party.
+     * Send current node's joined notification to everyone in the party.
      * The message is data + its encryption. Other nodes can decrypt and verify whether the secret is correct.
      * @returns {Promise<void>}
      */
@@ -241,8 +241,8 @@ export class DecentSignal {
     }
 
     /**
-     * Send current node"s encrypted public key to the user.
-     * Note that other nodes can also see this key but it doesn"t matter because it"s public key.
+     * Send current node's encrypted public key to the user.
+     * Note that other nodes can also see this key but it doesn't matter because it's a public key.
      * @param user {DecentSignalUser}
      * @returns {Promise<void>}
      */
@@ -310,6 +310,7 @@ export class DecentSignal {
         }
         const node = this.nodes.get(from.id);
         if (node !== undefined) {
+            // TODO: How to handle user retries?
             console.log(`User ${from.id} is trying to send joined notification multiple times.`);
             return;
         }

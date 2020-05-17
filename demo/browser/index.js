@@ -6,9 +6,9 @@ import {
 import {DecentSignalSubtleCrypto} from "../../adapters/subtle-crypto/dist/decent-signal-adapter-subtle-crypto.esm.js";
 
 /**
- * TODO: Do not use simple peer here. Try to demonstrate that this library is not dependent.
+ * TODO: Do not use simple peer here. Try to demonstrate that decent-signal is not dependent on it.
  * Demo app for browser. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
- * Servce and open the urls nodes in readme to see them perform signalling and then say hi! to each other.
+ * Serve and open the urls nodes in README to see them perform signalling and then say hi! to each other.
  * Each user rejects to do handshake with a user that is on same priority. If x1 > x2 then x2 is the initiator.
  */
 class HelloWorld {

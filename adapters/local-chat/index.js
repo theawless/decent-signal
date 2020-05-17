@@ -11,10 +11,14 @@ export class DecentSignalLocalChatUser extends DecentSignalUser {
 }
 
 /**
- * Hacky implementation for a local chat using rxdb.
+ * Hacky implementation for a local chat using RxDB.
  * Assumes that the right database adapter is already added to RxDB by the caller.
  */
 export class DecentSignalLocalChat extends DecentSignalChannel {
+    /**
+     * Ideally we shouldn't store ranks in the messages.
+     * The user information should be provided by the channel through other functionality.
+     */
     SCHEMA = {
         "version": 0,
         "properties": {
