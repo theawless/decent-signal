@@ -1,18 +1,27 @@
-const {DecentSignalChannel, DecentSignalMessage, DecentSignalUser} = require("@decent-signal/decent-signal");
-const RxDB = require("rxdb");
-const snappy = require("pouchdb-adapter-snappy");
+import {DecentSignalChannel, DecentSignalMessage, DecentSignalUser} from "../../dist/decent-signal.esm";
+
+/**
+ * Add rank to the decent signal user description.
+ */
+export class DecentSignalLocalChatUser extends DecentSignalUser {
+    constructor(id, rank) {
+        super(id);
+        this.rank = rank;
+    }
+}
 
 /**
  * Hacky implementation for a local chat using rxdb.
- * Interestingly, wasn't able to get any pouch db adapter to work with multiple processes.
- * Snappy snap was the only one that works, even websql didn't work which was mentioned in the docs.
+ * Assumes that the right database adapter is already added to RxDB by the caller.
  */
-class LocalChat extends DecentSignalChannel {
+export class DecentSignalLocalChat extends DecentSignalChannel {
     SCHEMA = {
         "version": 0,
         "properties": {
-            "from": {"type": "string"},
-            "to": {"type": "string"},
+            "from_id": {"type": "string"},
+            "from_rank": {"type": "number"},
+            "to_id": {"type": "string"},
+            "to_rank": {"type": "number"},
             "party": {"type": "string"},
             "type": {"type": "string"},
             "message": {"type": "string"}
@@ -20,14 +29,15 @@ class LocalChat extends DecentSignalChannel {
     };
 
     /**
-     * @param user {DecentSignalUser}
-     * @param name {string}
+     * @param user {DecentSignalLocalChatUser}
+     * @param channel {string}
+     * @param adapter {string}
      */
-    constructor(user, name) {
+    constructor(user, channel, adapter) {
         super();
         this._user = user;
-        this._name = name;
-        RxDB.addRxPlugin(snappy);
+        this._channel = channel;
+        this._adapter = adapter;
     }
 
     /**
@@ -35,7 +45,7 @@ class LocalChat extends DecentSignalChannel {
      * @returns {Promise<void>}
      */
     async joinChannel() {
-        this._db = await RxDB.createRxDatabase({name: this._name, adapter: "snappy"});
+        this._db = await RxDB.createRxDatabase({name: this._channel, adapter: this._adapter});
         await this._db.collection({name: "messages", schema: this.SCHEMA});
         this._db.messages.insert$.subscribe(change => {
             this._handleInsert(change.documentData);
@@ -47,8 +57,8 @@ class LocalChat extends DecentSignalChannel {
      * @param entry according to schemata
      */
     _handleInsert(entry) {
-        const from = new DecentSignalUser(entry.from, undefined);
-        const to = entry.to === "" ? undefined : new DecentSignalUser(entry.to, undefined);
+        const from = new DecentSignalLocalChatUser(entry.from_id, entry.from_rank);
+        const to = entry.to_id === "" ? undefined : new DecentSignalLocalChatUser(entry.to_id, entry.to_rank);
         const message = new DecentSignalMessage(entry.party, to, entry.type, entry.message);
         this.events.emit("message-received", from, message);
     }
@@ -68,14 +78,14 @@ class LocalChat extends DecentSignalChannel {
      */
     async sendMessage(message) {
         const doc = {
-            to: message.to === undefined ? "" : message.to.id,
+            from_id: this._user.id,
+            from_rank: this._user.rank,
+            to_id: message.to === undefined ? "" : message.to.id,
+            to_rank: message.to === undefined ? -1 : message.to.rank,
             party: message.party,
             type: message.type,
-            from: this._user.id,
             message: message.message
         };
         await this._db.messages.insert(doc);
     }
 }
-
-module.exports.LocalChat = LocalChat;
