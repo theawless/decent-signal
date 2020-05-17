@@ -6,7 +6,7 @@ import {
 import {DecentSignalSubtleCrypto} from "../../adapters/subtle-crypto/dist/decent-signal-adapter-subtle-crypto.esm.js";
 
 /**
- * Demo app for browser. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
+ * Example for browser. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
  * Serve and open the urls nodes in README to see them perform signalling and then say hi! to each other.
  * Each user rejects to do handshake with a user that is on same priority. If x1 > x2 then x2 is the initiator.
  */
