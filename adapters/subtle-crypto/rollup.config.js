@@ -1,8 +1,16 @@
-import pkg from "./package.json";
+import pkg from './package.json'
 
-export default [
+export default {
+  input: 'index.js',
+  external: Object.keys(pkg.peerDependencies),
+  output: [
+    { file: pkg.module, format: 'es' },
     {
-        input: "index.js",
-        output: [{file: pkg.module, format: "es"}]
+      file: pkg.browser,
+      format: 'iife',
+      name: 'decentSignal',
+      extend: true,
+      globals: { 'decent-signal': 'decentSignal' }
     }
-];
+  ]
+}

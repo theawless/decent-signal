@@ -1,16 +1,16 @@
 {
-  "name": "@decent-signal/adapter-local-chat",
-  "description": "Adapter for a local chat for decent-signal",
+  "name": "decent-signal-adapter-local-chat",
+  "description": "Adapter for a hacky local chat for decent-signal",
   "license": "MIT",
-  "main": "dist/decent-signal-adapter-local-chat.cjs.js",
-  "module": "dist/decent-signal-adapter-local-chat.esm.js",
+  "main": "dist/decent-signal-adapter-local-chat.main.js",
+  "module": "dist/decent-signal-adapter-local-chat.module.js",
+  "browser": "dist/decent-signal-adapter-local-chat.browser.js",
   "peerDependencies": {
     "decent-signal": "*",
     "rxdb": "*"
   },
   "devDependencies": {
-    "rollup": "latest",
-    "@rollup/plugin-inject": "latest"
+    "rollup": "latest"
   },
   "scripts": {
     "prepare": "rollup -c"

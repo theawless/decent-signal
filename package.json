@@ -1,9 +1,10 @@
 {
-  "name": "@decent-signal/decent-signal",
+  "name": "decent-signal",
   "description": "A decent WebRTC signalling library",
   "license": "MIT",
-  "main": "dist/decent-signal.cjs.js",
-  "module": "dist/decent-signal.esm.js",
+  "main": "dist/decent-signal.main.js",
+  "module": "dist/decent-signal.module.js",
+  "browser": "dist/decent-signal.browser.js",
   "devDependencies": {
     "rollup": "latest"
   },

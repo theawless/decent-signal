@@ -14,8 +14,8 @@
     "rxdb": "latest",
     "rxjs": "latest",
     "pouchdb-adapter-snappy": "latest",
-    "@decent-signal/decent-signal": "file:../..",
-    "@decent-signal/adapter-local-chat": "file:../../adapters/local-chat",
-    "@decent-signal/adapter-node-crypto": "file:../../adapters/node-crypto"
+    "decent-signal": "file:../..",
+    "decent-signal-adapter-local-chat": "file:../../adapters/local-chat",
+    "decent-signal-adapter-node-crypto": "file:../../adapters/node-crypto"
   }
 }

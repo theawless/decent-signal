@@ -1,16 +1,17 @@
-import pkg from "./package.json";
-import inject from "@rollup/plugin-inject";
+import pkg from './package.json'
 
-export default [
+export default {
+  input: 'index.js',
+  external: Object.keys(pkg.peerDependencies),
+  output: [
+    { file: pkg.main, format: 'cjs' },
+    { file: pkg.module, format: 'es' },
     {
-        input: "index.js",
-        external: Object.keys(pkg.peerDependencies),
-        output: [{file: pkg.main, format: "cjs"}],
-        plugins: [inject({RxDB: "rxdb"})]
-
-    },
-    {
-        input: "index.js",
-        output: [{file: pkg.module, format: "es"}]
+      file: pkg.browser,
+      format: 'iife',
+      name: 'decentSignal',
+      extend: true,
+      globals: { 'decent-signal': 'decentSignal', rxdb: 'RxDB' }
     }
-];
+  ]
+}

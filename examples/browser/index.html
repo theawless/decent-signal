@@ -1,13 +1,17 @@
 <html lang="en">
 <head>
     <link href="data:," rel="icon">
-    <script src="../../dist/decent-signal.esm.js" type="module"></script>
     <script src="https://unpkg.com/rxdb/dist/rxdb.browserify.min.js"></script>
+    <script src="../../dist/decent-signal.browser.js"></script>
+    <script src="../../adapters/local-chat/dist/decent-signal-adapter-local-chat.browser.js"></script>
+    <script src="../../adapters/subtle-crypto/dist/decent-signal-adapter-subtle-crypto.browser.js"></script>
     <title>Browser example</title>
 </head>
 <body>
-<label for="console"></label>
-<textarea id="console" readonly style="width: 100%; height: 100%"></textarea>
-<script src="index.js" type="module"></script>
+<main>
+    <label for="console"></label>
+    <textarea id="console" readonly style="width: 100%; height: 100%"></textarea>
+    <script src="index.js"></script>
+</main>
 </body>
 </html>
