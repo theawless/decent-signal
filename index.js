@@ -187,7 +187,7 @@ export class DecentSignal {
    * @param {DecentSignalUser} user
    * @param {DecentSignalCryptography} crypto
    * @param {DecentSignalChannel} channel
-   * @param {{party: string, password: string}} options
+   * @param {{party: string, pass: string}} options
    */
   constructor (user, channel, crypto, options) {
     this.node = new DecentSignalNode(user, undefined)
@@ -228,7 +228,7 @@ export class DecentSignal {
    */
   async _sendJoinedNotification () {
     const data = await this._crypto.generateSecret()
-    const encrypted = await this._crypto.secretEncrypt(this._options.password, data)
+    const encrypted = await this._crypto.secretEncrypt(this._options.pass, data)
     const message = JSON.stringify({ encrypted: encrypted, data: data })
     await this._channel.sendMessage(new DecentSignalMessage(this._options.party, undefined, 'joined', message))
   }
@@ -240,7 +240,7 @@ export class DecentSignal {
    * @returns {Promise<void>}
    */
   async _sendPublicKey (user) {
-    const key = await this._crypto.secretEncrypt(this._options.password, this.node.key.public)
+    const key = await this._crypto.secretEncrypt(this._options.pass, this.node.key.public)
     await this._channel.sendMessage(new DecentSignalMessage(this._options.party, user, 'handshake', key))
   }
 
@@ -276,7 +276,7 @@ export class DecentSignal {
       try {
         await this._handlePartyMessage(from, message)
       } catch (e) {
-        console.log(`Error occurred trying to handle party message from user ${from.id}.`)
+        console.error(`Error occurred trying to handle party message from user ${from.id}.`)
       }
     } else {
       if (message.to.id !== this.node.user.id) {
@@ -285,7 +285,7 @@ export class DecentSignal {
       try {
         await this._handleUserMessage(from, message)
       } catch (e) {
-        console.log(`Error occurred trying to handle targeted message from user ${from.id}.`)
+        console.error(`Error occurred trying to handle targeted message from user ${from.id}.`)
       }
     }
   }
@@ -298,13 +298,13 @@ export class DecentSignal {
    */
   async _handlePartyMessage (from, message) {
     if (message.type !== 'joined') {
-      console.log(`User ${from.id} is trying to send weird data to all nodes.`)
+      console.info(`User ${from.id} is trying to send weird data to all nodes.`)
       return
     }
     const node = this.nodes.get(from.id)
     if (node !== undefined) {
       // TODO: How to handle user retries?
-      console.log(`User ${from.id} is trying to send joined notification multiple times.`)
+      console.info(`User ${from.id} is trying to send joined notification multiple times.`)
       return
     }
     await this.handleJoinedMessage(from, message)
@@ -320,7 +320,7 @@ export class DecentSignal {
     const node = this.nodes.get(from.id)
     if (node === undefined) {
       if (message.type !== 'handshake') {
-        console.log(`User ${from.id} is sending weird data to our node.`)
+        console.info(`User ${from.id} is sending weird data to our node.`)
         return
       }
       await this.handleHandshakeFirstMessage(from, message)
@@ -330,7 +330,7 @@ export class DecentSignal {
       } else if (message.type === 'signal') {
         await this.handleSignalMessage(node, message)
       } else {
-        console.log(`User ${from.id} is sending weird data to our node.`)
+        console.info(`User ${from.id} is sending weird data to our node.`)
       }
     }
   }
@@ -344,9 +344,9 @@ export class DecentSignal {
    */
   async handleJoinedMessage (from, message) {
     const joined = JSON.parse(message.message)
-    const data = await this._crypto.secretDecrypt(this._options.password, joined.encrypted)
+    const data = await this._crypto.secretDecrypt(this._options.pass, joined.encrypted)
     if (data !== joined.data) {
-      console.log(`Either password for user ${from.id} is wrong, or our password is wrong.`)
+      console.info(`Either password for user ${from.id} is wrong, or our password is wrong.`)
       return
     }
     const doHandshake = () => {
@@ -364,7 +364,7 @@ export class DecentSignal {
    * @returns {Promise<void>}
    */
   async handleHandshakeFirstMessage (from, message) {
-    const key = await this._crypto.secretDecrypt(this._options.password, message.message)
+    const key = await this._crypto.secretDecrypt(this._options.pass, message.message)
     const doHandshake = () => {
       const node = new DecentSignalNode(from, { public: key, private: undefined })
       this.nodes.set(from.id, node)
@@ -381,7 +381,7 @@ export class DecentSignal {
    * @returns {Promise<void>}
    */
   async handleHandshakeSecondMessage (node, message) {
-    const key = await this._crypto.secretDecrypt(this._options.password, message.message)
+    const key = await this._crypto.secretDecrypt(this._options.pass, message.message)
     node.key = { public: key, private: undefined }
     this.events.emit('node-discovered', node)
   }
