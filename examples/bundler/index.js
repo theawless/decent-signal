@@ -3,7 +3,8 @@ import { DecentSignalSubtleCrypto } from 'decent-signal-adapter-subtle-crypto'
 import { DecentSignalLocalChat, DecentSignalLocalChatUser } from 'decent-signal-adapter-local-chat'
 
 /**
- * Example for browser. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
+ * Example for bundler + manual webrtc + subtle crypto + local chat + rank based network.
+ * See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
  * Serve and open the urls nodes in README to see them perform signalling and then say hi! to each other.
  * Each user rejects to do handshake with a user that is on same priority. If x1 > x2 then x2 is the initiator.
  */
@@ -146,7 +147,7 @@ console.info = function (...args) {
  * @returns {Promise<void>}
  */
 async function main () {
-  const db = await RxDB.createRxDatabase({ name: 'channel', adapter: 'idb' })
+  const db = await window.RxDB.createRxDatabase({ name: 'channel', adapter: 'idb' })
   const args = new URLSearchParams(window.location.search)
   const demo = new HelloWorld(db, {
     id: args.get('id'),

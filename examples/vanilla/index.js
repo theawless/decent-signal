@@ -1,7 +1,8 @@
 /**
- * Example for browser. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
+ * Example for browser + simple peer + matrix im + full mesh network.
+ * See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
  * Serve and open the urls nodes in README to see them perform signalling and then say hi! to each other.
- * Each user rejects to do handshake with a user that is on same priority. If x1 > x2 then x2 is the initiator.
+ * Every user connects with every other user.
  */
 class HelloWorld {
   /**
@@ -61,7 +62,7 @@ class HelloWorld {
    * @returns {Promise<void>}
    */
   async _handleDiscovery (node) {
-    const peer = new SimplePeer({ initiator: this._user.id < node.user.id })
+    const peer = new window.SimplePeer({ initiator: this._user.id < node.user.id })
     this._peers.set(node.user.id, peer)
     peer.on('signal', (data) => {
       this._signal.sendSignal(node, JSON.stringify(data)).then()
@@ -103,7 +104,7 @@ async function main () {
   const room = '!amsfoHspuicqIckjff:matrix.org' // #decent-signal-demo:matrix.org room
   const args = new URLSearchParams(window.location.search)
   const client = window.matrixcs.createClient('https://matrix.org')
-  await client.login('m.login.password', { 'user': args.get('loginId'), 'password': args.get('loginPass') })
+  await client.login('m.login.password', { user: args.get('loginId'), password: args.get('loginPass') })
   await client.startClient({ initialSyncLimit: 0, lazyLoadMembers: true })
   await client.joinRoom(room)
   const demo = new HelloWorld(client, { room, party: args.get('party'), pass: args.get('pass') })

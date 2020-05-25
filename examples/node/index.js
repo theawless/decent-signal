@@ -7,7 +7,8 @@ const { DecentSignalNodeCrypto } = require('decent-signal-adapter-node-crypto')
 const { DecentSignalLocalChat, DecentSignalLocalChatUser } = require('decent-signal-adapter-local-chat')
 
 /**
- * Example for node. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
+ * Example for node + simple peer + node crypto + local chat + rank based network.
+ * See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
  * Run the scripts from package.json to see them perform signalling and then say hi! to each other.
  * Each user rejects to do handshake with a user that is on same rank. If x1 > x2 then x2 is the initiator.
  *

@@ -35,6 +35,7 @@ export class DecentSignalLocalChat extends DecentSignalChannel {
   };
 
   /**
+   * The db should be fully constructed.
    * @param {RxDatabaseBase} db
    * @param {DecentSignalLocalChatUser} user
    */

@@ -17,7 +17,8 @@ export class DecentSignalMatrixChat extends DecentSignalChannel {
   }
 
   /**
-   * Start listening to all message events in the room.
+   * Start listening to events in the room.
+   * TODO: Add a filter to ignore receiving unnecessary events.
    * @returns {Promise<void>}
    */
   async startListening () {

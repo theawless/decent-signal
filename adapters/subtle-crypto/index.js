@@ -1,7 +1,7 @@
 import { DecentSignalCryptography } from 'decent-signal'
 
 /**
- * Cryptography functions that use browser's built in window.crypto.
+ * Cryptography functions that use browser's built in crypto.
  * TODO: Find a library for the hex to/from array conversion.
  */
 export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
