@@ -4,8 +4,7 @@ Example for browser + simple peer + matrix im + full mesh network.
 
 ## Demo
 
-* Serve with `npx serve` in the root directory
-* Update and open [http://localhost:5000/examples/vanilla/?loginId=[]&loginPass=[]&party=[]&pass=[]](http://localhost:5000/examples/vanilla/?loginId=[]&loginPass=[]&party=[]&pass=[])
+* Update and open https://theawless.github.io/decent-signal/examples/vanilla/?loginId=[]&loginPass=[]&party=[]&pass=[]
 
 ## Documentation
 
