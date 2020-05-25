@@ -1,0 +1,8 @@
+body {
+    margin: auto;
+    width: fit-content;
+    font-size: smaller;
+    padding: 0.5em;
+    color: darkslategrey;
+    background-color: lightslategrey;
+}

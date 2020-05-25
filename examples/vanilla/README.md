@@ -4,7 +4,7 @@ Example for browser + simple peer + matrix im + full mesh network.
 
 ## Demo
 
-* Update and open https://theawless.github.io/decent-signal/examples/vanilla/?loginId=[]&loginPass=[]&party=[]&pass=[]
+* Open https://theawless.github.io/decent-signal/examples/vanilla
 
 ## Documentation
 

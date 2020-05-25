@@ -102,16 +102,51 @@ console.info = function (...args) {
  */
 async function main () {
   const room = '!amsfoHspuicqIckjff:matrix.org' // #decent-signal-demo:matrix.org room
-  const args = new URLSearchParams(window.location.search)
-  const client = window.matrixcs.createClient('https://matrix.org')
-  await client.login('m.login.password', { user: args.get('loginId'), password: args.get('loginPass') })
-  await client.startClient({ initialSyncLimit: 0, lazyLoadMembers: true })
-  await client.joinRoom(room)
-  const demo = new HelloWorld(client, { room, party: args.get('party'), pass: args.get('pass') })
-  await demo.start()
+  document.getElementById('status').innerHTML = 'Ready...'
+  let client, demo
+  document.getElementById('start').addEventListener('click', () => {
+    const user = document.getElementById('loginId').value
+    const password = document.getElementById('loginPass').value
+    const party = document.getElementById('party').value
+    const pass = document.getElementById('pass').value
+    if (user === '' || password === '' || party === '' || pass === '') {
+      window.alert('Please provide all the fields in the form!')
+      return
+    }
+    if (client !== undefined || demo !== undefined) {
+      return
+    }
+    document.getElementById('status').innerText = 'Starting...'
+    client = window.matrixcs.createClient('https://matrix.org')
+    client.login('m.login.password', { user, password })
+      .then(() => client.clearStores())
+      .then(() => client.startClient({ initialSyncLimit: 0, lazyLoadMembers: true }))
+      .then(() => client.joinRoom(room))
+      .then(() => { demo = new HelloWorld(client, { room, party, pass }) })
+      .then(() => demo.start())
+      .then(() => { document.getElementById('status').innerText = 'Signalling...' })
+  })
+  document.getElementById('stop').addEventListener('click', () => {
+    if (demo === undefined || client === undefined) {
+      return
+    }
+    document.getElementById('status').innerText = 'Stopping...'
+    demo.stop()
+      .then(() => { demo = undefined })
+      .then(() => client.leave(room))
+      .then(() => { client = undefined })
+      .then(() => { document.getElementById('status').innerText = 'Stopped...' })
+  })
   window.onbeforeunload = () => {
-    demo.stop().then()
-    client.leave(room).then()
+    if (demo === undefined || client === undefined) {
+      return
+    }
+    document.getElementById('status').innerText = 'Closing...'
+    demo.stop()
+      .then(() => { demo = undefined })
+      .then(() => client.leave(room))
+      .then(() => { client = undefined })
+      .then(() => { document.getElementById('status').innerText = 'Closed...' })
     return ''
   }
 }
