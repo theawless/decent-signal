@@ -1,0 +1,21 @@
+{
+  "name": "decent-signal-adapter-matrix-chat",
+  "description": "Adapter for matrix chat for decent-signal",
+  "license": "MIT",
+  "main": "dist/decent-signal-adapter-matrix-chat.main.js",
+  "module": "dist/decent-signal-adapter-matrix-chat.module.js",
+  "browser": "dist/decent-signal-adapter-matrix-chat.browser.js",
+  "peerDependencies": {
+    "decent-signal": "*"
+  },
+  "devDependencies": {
+    "decent-signal": "file:../..",
+    "rollup": "latest"
+  },
+  "scripts": {
+    "prepare": "rollup -c"
+  },
+  "files": [
+    "dist"
+  ]
+}
