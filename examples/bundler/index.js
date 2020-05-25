@@ -1,3 +1,7 @@
+import { DecentSignal } from 'decent-signal'
+import { DecentSignalSubtleCrypto } from 'decent-signal-adapter-subtle-crypto'
+import { DecentSignalLocalChat, DecentSignalLocalChatUser } from 'decent-signal-adapter-local-chat'
+
 /**
  * Example for browser. See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
  * Serve and open the urls nodes in README to see them perform signalling and then say hi! to each other.
@@ -5,17 +9,17 @@
  */
 class HelloWorld {
   /**
+   * @param {RxDatabaseBase} db
    * @param {string} id
    * @param {number} rank
    * @param {string} party
    * @param {string} pass
    */
-  constructor (id, rank, party, pass) {
-    this._crypto = new window.decentSignal.DecentSignalSubtleCrypto()
-    this._user = new window.decentSignal.DecentSignalLocalChatUser(id, rank)
-    this._chat = new window.decentSignal.DecentSignalLocalChat(this._user, 'channel', 'idb')
-    const options = { party: party, password: pass }
-    this._signal = new window.decentSignal.DecentSignal(this._user, this._chat, this._crypto, options)
+  constructor (db, { id, rank, party, pass }) {
+    this._crypto = new DecentSignalSubtleCrypto()
+    this._user = new DecentSignalLocalChatUser(id, rank)
+    this._chat = new DecentSignalLocalChat(db, this._user)
+    this._signal = new DecentSignal(this._user, this._chat, this._crypto, { party, pass })
     this._peers = new Map() // map of user id to peer
     this._onUserSeen = (user, accept) => this._handleSeen(user, accept).then()
     this._onNodeDiscovery = (node) => this._handleDiscovery(node).then()
@@ -27,7 +31,7 @@ class HelloWorld {
    * @returns {Promise<void>}
    */
   async start () {
-    await this._chat.joinChannel()
+    await this._chat.startListening()
     await this._signal.startSignalling()
     this._signal.events.connect('user-seen', this._onUserSeen)
     this._signal.events.connect('node-discovered', this._onNodeDiscovery)
@@ -43,7 +47,7 @@ class HelloWorld {
     this._signal.events.disconnect('node-discovered', this._onNodeDiscovery)
     this._signal.events.disconnect('user-seen', this._onUserSeen)
     await this._signal.stopSignalling()
-    await this._chat.leaveChannel()
+    await this._chat.stopListening()
   }
 
   /**
@@ -54,7 +58,7 @@ class HelloWorld {
    */
   async _handleSeen (user, accept) {
     if (this._user.rank - user.rank === 0) {
-      console.log(`Skipping handshake for user ${user.id}.`)
+      console.info(`Skipping handshake for user ${user.id}.`)
       return
     }
     accept()
@@ -101,7 +105,7 @@ class HelloWorld {
    * @param {RTCDataChannel} chat
    */
   _setupChat (chat) {
-    chat.onmessage = (event) => console.log(`Got a message: "${event.data}".`)
+    chat.onmessage = (event) => console.info(`Got a message: "${event.data}".`)
     chat.onopen = (_) => chat.send(`Hello from ${this._user.id}!`)
   };
 
@@ -123,7 +127,7 @@ class HelloWorld {
     } else if (message.ice) {
       await peer.addIceCandidate(new window.RTCIceCandidate(message.ice))
     } else {
-      console.log(`Received weird signalling data from user ${node.user.id}.`)
+      console.info(`Received weird signalling data from user ${node.user.id}.`)
     }
   }
 }
@@ -132,7 +136,7 @@ class HelloWorld {
  * Log to the console widget on the page.
  * @param {...*} args
  */
-console.log = function (...args) {
+console.info = function (...args) {
   const message = args.map(x => typeof x === 'object' ? JSON.stringify(x) : x)
   document.getElementById('console').textContent += message + '\n'
 }
@@ -142,8 +146,14 @@ console.log = function (...args) {
  * @returns {Promise<void>}
  */
 async function main () {
+  const db = await RxDB.createRxDatabase({ name: 'channel', adapter: 'idb' })
   const args = new URLSearchParams(window.location.search)
-  const demo = new HelloWorld(args.get('id'), parseInt(args.get('rank')), args.get('party'), args.get('pass'))
+  const demo = new HelloWorld(db, {
+    id: args.get('id'),
+    rank: parseInt(args.get('rank')),
+    party: args.get('party'),
+    pass: args.get('pass')
+  })
   await demo.start()
   window.addEventListener('beforeunload', (_) => {
     demo.stop().then()

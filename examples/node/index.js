@@ -16,18 +16,17 @@ const { DecentSignalLocalChat, DecentSignalLocalChatUser } = require('decent-sig
  */
 class HelloWorld {
   /**
+   * @param {RxDatabaseBase} db
    * @param {string} id
    * @param {number} rank
    * @param {string} party
    * @param {string} pass
    */
-  constructor (id, rank, party, pass) {
-    RxDB.addRxPlugin(snappy)
+  constructor (db, { id, rank, party, pass }) {
     this._crypto = new DecentSignalNodeCrypto()
     this._user = new DecentSignalLocalChatUser(id, rank)
-    this._chat = new DecentSignalLocalChat(this._user, 'channel', 'snappy')
-    const options = { party: party, password: pass }
-    this._signal = new DecentSignal(this._user, this._chat, this._crypto, options)
+    this._chat = new DecentSignalLocalChat(db, this._user)
+    this._signal = new DecentSignal(this._user, this._chat, this._crypto, { party, pass })
     this._peers = new Map() // map of user id to peer
     this._onUserSeen = (user, accept) => this._handleSeen(user, accept).then()
     this._onNodeDiscovery = (node) => this._handleDiscovery(node).then()
@@ -39,7 +38,7 @@ class HelloWorld {
    * @returns {Promise<void>}
    */
   async start () {
-    await this._chat.joinChannel()
+    await this._chat.startListening()
     await this._signal.startSignalling()
     this._signal.events.connect('user-seen', this._onUserSeen)
     this._signal.events.connect('node-discovered', this._onNodeDiscovery)
@@ -55,7 +54,7 @@ class HelloWorld {
     this._signal.events.disconnect('node-discovered', this._onNodeDiscovery)
     this._signal.events.disconnect('user-seen', this._onUserSeen)
     await this._signal.stopSignalling()
-    await this._chat.leaveChannel()
+    await this._chat.stopListening()
   }
 
   /**
@@ -66,7 +65,7 @@ class HelloWorld {
    */
   async _handleSeen (user, accept) {
     if (this._user.rank === user.rank) {
-      console.log(`Skipping handshake for user ${user.id}.`)
+      console.info(`Skipping handshake for user ${user.id}.`)
       return
     }
     accept()
@@ -78,7 +77,7 @@ class HelloWorld {
    * @returns {Promise<void>}
    */
   async _handleDiscovery (node) {
-    const peer = new Peer({ wrtc: wrtc, initiator: this._user.rank - node.user.rank < 0 })
+    const peer = new Peer({ wrtc, initiator: this._user.rank - node.user.rank < 0 })
     this._peers.set(node.user.id, peer)
     peer.on('signal', (data) => {
       this._signal.sendSignal(node, JSON.stringify(data)).then()
@@ -87,7 +86,7 @@ class HelloWorld {
       peer.send(`Hello from ${this._user.id}!`)
     })
     peer.on('data', data => {
-      console.log(`Got a message: "${data}".`)
+      console.info(`Got a message: "${data}".`)
     })
   }
 
@@ -108,7 +107,14 @@ class HelloWorld {
  * @returns {Promise<void>}
  */
 async function main () {
-  const demo = new HelloWorld(process.argv[2], parseInt(process.argv[3]), process.argv[4], process.argv[5])
+  RxDB.addRxPlugin(snappy)
+  const db = await RxDB.createRxDatabase({ name: 'channel', adapter: 'snappy' })
+  const demo = new HelloWorld(db, {
+    id: process.argv[2],
+    rank: parseInt(process.argv[3]),
+    party: process.argv[4],
+    pass: process.argv[5]
+  })
   await demo.start()
   process.on('SIGINT', () => demo.stop().then(() => process.exit()))
 }

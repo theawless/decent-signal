@@ -1,0 +1,15 @@
+{
+  "module": "dist/decent-signal-examples-bundler.module.js",
+  "scripts": {
+    "prepare": "rollup -c"
+  },
+  "dependencies": {
+    "decent-signal": "file:../..",
+    "decent-signal-adapter-local-chat": "file:../../adapters/local-chat",
+    "decent-signal-adapter-subtle-crypto": "file:../../adapters/subtle-crypto"
+  },
+  "devDependencies": {
+    "rollup": "latest",
+    "@rollup/plugin-node-resolve": "latest"
+  }
+}
