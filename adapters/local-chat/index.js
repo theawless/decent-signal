@@ -1,5 +1,4 @@
 import { DecentSignalChannel, DecentSignalMessage, DecentSignalUser } from 'decent-signal'
-import { createRxDatabase } from 'rxdb'
 
 /**
  * Add rank to the decent signal user description.
@@ -13,7 +12,6 @@ export class DecentSignalLocalChatUser extends DecentSignalUser {
 
 /**
  * Hacky implementation for a local chat using RxDB.
- * Assumes that the right database adapter is already plugged in to RxDB by the caller.
  */
 export class DecentSignalLocalChat extends DecentSignalChannel {
   /**
@@ -37,34 +35,30 @@ export class DecentSignalLocalChat extends DecentSignalChannel {
   };
 
   /**
+   * @param {RxDatabaseBase} db
    * @param {DecentSignalLocalChatUser} user
-   * @param {string} channel
-   * @param {string} adapter
    */
-  constructor (user, channel, adapter) {
+  constructor (db, user) {
     super()
+    this._db = db
     this._user = user
-    this._channel = channel
-    this._adapter = adapter
+    this._onCollectionChange = (change) => this._handleMessage(change.documentData)
   }
 
   /**
-   * Join the channel by listening to all message insertion events.
+   * Start listening to all message insertion events.
    * @returns {Promise<void>}
    */
-  async joinChannel () {
-    this._db = await createRxDatabase({ name: this._channel, adapter: this._adapter })
+  async startListening () {
     await this._db.collection({ name: 'messages', schema: DecentSignalLocalChat.SCHEMA })
-    this._db.messages.insert$.subscribe(change => {
-      this._handleInsert(change.documentData)
-    })
+    this._db.messages.insert$.subscribe(this._onCollectionChange)
   }
 
   /**
-   * Send a message receive notification.
-   * @param entry according to schema
+   * Handle the incoming message.
+   * @param {object} entry
    */
-  _handleInsert (entry) {
+  _handleMessage (entry) {
     const from = new DecentSignalLocalChatUser(entry.from_id, entry.from_rank)
     const to = entry.to_id === '' ? undefined : new DecentSignalLocalChatUser(entry.to_id, entry.to_rank)
     const message = new DecentSignalMessage(entry.party, to, entry.type, entry.message)
@@ -72,11 +66,11 @@ export class DecentSignalLocalChat extends DecentSignalChannel {
   }
 
   /**
-   * Stop listening to updates in the file.
+   * Stop listening to updates in the database.
    * @returns {Promise<void>}
    */
-  async leaveChannel () {
-    await this._db.destroy()
+  async stopListening () {
+    await this._db.messages.destroy()
   }
 
   /**

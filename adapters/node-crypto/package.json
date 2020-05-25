@@ -8,6 +8,7 @@
     "decent-signal": "*"
   },
   "devDependencies": {
+    "decent-signal": "file:../..",
     "rollup": "latest"
   },
   "scripts": {

@@ -6,10 +6,10 @@
   "module": "dist/decent-signal-adapter-local-chat.module.js",
   "browser": "dist/decent-signal-adapter-local-chat.browser.js",
   "peerDependencies": {
-    "decent-signal": "*",
-    "rxdb": "*"
+    "decent-signal": "*"
   },
   "devDependencies": {
+    "decent-signal": "file:../..",
     "rollup": "latest"
   },
   "scripts": {

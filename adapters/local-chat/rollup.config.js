@@ -11,7 +11,7 @@ export default {
       format: 'iife',
       name: 'decentSignal',
       extend: true,
-      globals: { 'decent-signal': 'decentSignal', rxdb: 'RxDB' }
+      globals: { 'decent-signal': 'decentSignal' }
     }
   ]
 }
