@@ -11,7 +11,7 @@ export class DecentSignalNodeCrypto extends DecentSignalCryptography {
    * @returns {Promise<string>} hex encoded
    */
   async generateSecret () {
-    return crypto.randomBytes(64).toString('hex')
+    return crypto.randomBytes(32).toString('hex')
   }
 
   /**
