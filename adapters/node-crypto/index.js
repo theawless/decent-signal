@@ -15,12 +15,12 @@ export class DecentSignalNodeCrypto extends DecentSignalCryptography {
   }
 
   /**
-   * Encrypt a message by creating a key using scrypt and performing AES.
+   * Encrypt text by creating a key using scrypt and performing AES.
    * @param {string} secret utf8 encoded
-   * @param {string} message utf8 encoded
+   * @param {string} text utf8 encoded
    * @returns {Promise<string>} {salt, iv, encrypt, tag} hex encoded
    */
-  async secretEncrypt (secret, message) {
+  async secretEncrypt (secret, text) {
     const salt = crypto.randomBytes(32)
     const key = crypto.scryptSync(secret, salt, 32)
     const iv = crypto.randomBytes(16)
@@ -28,19 +28,19 @@ export class DecentSignalNodeCrypto extends DecentSignalCryptography {
     return JSON.stringify({
       salt: salt.toString('hex'),
       iv: iv.toString('hex'),
-      encrypt: cipher.update(message, 'utf8', 'hex') + cipher.final('hex'),
+      encrypt: cipher.update(text, 'utf8', 'hex') + cipher.final('hex'),
       tag: cipher.getAuthTag()
     })
   }
 
   /**
-   * Decrypt a message by creating a key using scrypt and performing AES.
+   * Decrypt text by creating a key using scrypt and performing AES.
    * @param {string} secret utf8 encoded
-   * @param {string} message {salt, iv, encrypted, tag} hex encoded
+   * @param {string} text {salt, iv, encrypted, tag} hex encoded
    * @returns {Promise<string>} utf8 encoded
    */
-  async secretDecrypt (secret, message) {
-    const { salt, iv, encrypt, tag } = JSON.parse(message)
+  async secretDecrypt (secret, text) {
+    const { salt, iv, encrypt, tag } = JSON.parse(text)
     const key = crypto.scryptSync(secret, Buffer.from(salt, 'hex'), 32)
     const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'))
     decipher.setAuthTag(Buffer.from(tag, 'hex'))
@@ -51,7 +51,7 @@ export class DecentSignalNodeCrypto extends DecentSignalCryptography {
    * Generate a public-private key pair using RSA.
    * @returns {Promise<{public: string, private: string}>} pem encoded
    */
-  async generateKeyPair () {
+  async generateKeys () {
     const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
       modulusLength: 4096,
       publicKeyEncoding: { type: 'spki', format: 'pem' },
@@ -61,22 +61,22 @@ export class DecentSignalNodeCrypto extends DecentSignalCryptography {
   }
 
   /**
-   * Encrypt a message using RSA public key.
+   * Encrypt text using RSA public key.
    * @param {string} key pem encoded
-   * @param {string} message utf8 encoded
+   * @param {string} text utf8 encoded
    * @returns {Promise<string>} hex encoded
    */
-  async publicEncrypt (key, message) {
-    return crypto.publicEncrypt(key, Buffer.from(message)).toString('hex')
+  async publicEncrypt (key, text) {
+    return crypto.publicEncrypt(key, Buffer.from(text)).toString('hex')
   }
 
   /**
-   * Decrypt a message using RSA private key.
+   * Decrypt text using RSA private key.
    * @param {string} key pem encoded
-   * @param {string} message hex encoded
+   * @param {string} text hex encoded
    * @returns {Promise<string>} utf8 encoded
    */
-  async privateDecrypt (key, message) {
-    return crypto.privateDecrypt(key, Buffer.from(message, 'hex')).toString('utf8')
+  async privateDecrypt (key, text) {
+    return crypto.privateDecrypt(key, Buffer.from(text, 'hex')).toString('utf8')
   }
 }

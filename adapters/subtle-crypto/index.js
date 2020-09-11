@@ -24,29 +24,29 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
   }
 
   /**
-   * Encrypt a message by creating a key using PBKDF2 and performing AES.
+   * Encrypt text by creating a key using PBKDF2 and performing AES.
    * @param {string} secret utf8 encoded
-   * @param {string} message utf8 encoded
+   * @param {string} text utf8 encoded
    * @returns {Promise<string>} {salt, iv, encrypt} hex encoded
    */
-  async secretEncrypt (secret, message) {
+  async secretEncrypt (secret, text) {
     const key1 = await window.crypto.subtle.importKey('raw', this._enc.encode(secret), 'PBKDF2', false, ['deriveKey'])
     const salt = window.crypto.getRandomValues(new Uint8Array(32))
     const algo = { name: 'PBKDF2', hash: 'SHA-512', salt: salt, iterations: 100000 }
     const key2 = await window.crypto.subtle.deriveKey(algo, key1, { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
     const iv = window.crypto.getRandomValues(new Uint8Array(16))
-    const encrypt = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key2, this._enc.encode(message))
+    const encrypt = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key2, this._enc.encode(text))
     return JSON.stringify({ salt: this._hex(salt), iv: this._hex(iv), encrypt: this._hex(new Uint8Array(encrypt)) })
   }
 
   /**
-   * Decrypt a message by creating a key using PBKDF2 and performing AES.
+   * Decrypt text by creating a key using PBKDF2 and performing AES.
    * @param {string} secret utf8 encoded
-   * @param {string} message {salt, iv, encrypt} hex encoded
+   * @param {string} text {salt, iv, encrypt} hex encoded
    * @returns {Promise<string>} utf8 encoded
    */
-  async secretDecrypt (secret, message) {
-    const { salt, iv, encrypt } = JSON.parse(message)
+  async secretDecrypt (secret, text) {
+    const { salt, iv, encrypt } = JSON.parse(text)
     const key1 = await window.crypto.subtle.importKey('raw', this._enc.encode(secret), 'PBKDF2', false, ['deriveKey'])
     const algo = { name: 'PBKDF2', hash: 'SHA-512', salt: this._arr(salt), iterations: 100000 }
     const key2 = await window.crypto.subtle.deriveKey(algo, key1, { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
@@ -58,7 +58,7 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
    * Generate a public-private key pair using RSA.
    * @returns {Promise<{public: string, private: string}>} hex encoded
    */
-  async generateKeyPair () {
+  async generateKeys () {
     const algo = { name: 'RSA-OAEP', modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-512' }
     const pair = await window.crypto.subtle.generateKey(algo, true, ['encrypt', 'decrypt'])
     const [publicKey, privateKey] = await Promise.all([
@@ -69,28 +69,28 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
   }
 
   /**
-   * Encrypt a message using RSA public key.
+   * Encrypt text using RSA public key.
    * @param {string} key hex
-   * @param {string} message utf8
+   * @param {string} text utf8
    * @returns {Promise<string>} hex
    */
-  async publicEncrypt (key, message) {
+  async publicEncrypt (key, text) {
     const algo = { name: 'RSA-OAEP', hash: 'SHA-512' }
     const key1 = await window.crypto.subtle.importKey('spki', this._arr(key), algo, false, ['encrypt'])
-    const encrypted = await window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key1, this._enc.encode(message))
+    const encrypted = await window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key1, this._enc.encode(text))
     return this._hex(new Uint8Array(encrypted))
   }
 
   /**
-   * Decrypt a message using RSA private key.
+   * Decrypt text using RSA private key.
    * @param {string} key hex
-   * @param {string} message hex
+   * @param {string} text hex
    * @returns {Promise<string>} utf8
    */
-  async privateDecrypt (key, message) {
+  async privateDecrypt (key, text) {
     const algo = { name: 'RSA-OAEP', hash: 'SHA-512' }
     const key1 = await window.crypto.subtle.importKey('pkcs8', this._arr(key), algo, false, ['decrypt'])
-    const decrypted = await window.crypto.subtle.decrypt({ name: 'RSA-OAEP' }, key1, this._arr(message))
+    const decrypted = await window.crypto.subtle.decrypt({ name: 'RSA-OAEP' }, key1, this._arr(text))
     return this._dec.decode(decrypted)
   }
 
