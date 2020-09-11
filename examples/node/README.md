@@ -1,6 +1,6 @@
 # decent-signal-example-node
 
-Example for node + simple peer + node crypto + local chat + rank based network.
+Example for local node end to end encrypted chat.
 
 ## Demo
 
