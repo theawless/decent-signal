@@ -1,6 +1,6 @@
 # decent-signal-example-node
 
-Example for local node end to end encrypted chat.
+Example for node + crypto + public key communication + local chat as a channel + party system.
 
 ## Demo
 

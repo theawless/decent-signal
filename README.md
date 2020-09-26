@@ -15,6 +15,7 @@ Please refer to the documentation comments for now.
 ```sh
 npm install;
 cd adapters/local-chat; npm install; cd ../..;
+cd adapters/local-server; npm install; cd ../..;
 cd adapters/matrix-chat; npm install; cd ../..;
 cd adapters/node-crypto; npm install; cd ../..;
 cd adapters/subtle-crypto; npm install; cd ../..;
@@ -30,6 +31,7 @@ cd examples/node; npm install; cd ../..;
 ```sh
 npm publish;
 cd adapters/local-chat; npm publish; cd ../..;
+cd adapters/local-server; npm publish; cd ../..;
 cd adapters/matrix-chat; npm publish; cd ../..;
 cd adapters/node-crypto; npm publish; cd ../..;
 cd adapters/subtle-crypto; npm publish; cd ../..;

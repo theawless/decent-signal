@@ -1,18 +1,20 @@
 const RxDB = require('rxdb')
 const snappy = require('pouchdb-adapter-snappy')
 const {
-  DecentSignalPublicKeyCommunicator, DecentSignal, DecentSignalParty, DecentSignalChannel,
-  DecentSignalUser, DecentSignalMessage
+  DecentSignalPublicKeyCommunicator,
+  DecentSignal,
+  DecentSignalParty,
+  DecentSignalChannel,
+  DecentSignalUser,
+  DecentSignalMessage
 } = require('decent-signal')
 const { DecentSignalNodeCrypto } = require('decent-signal-adapter-node-crypto')
 const { DecentSignalLocalChat } = require('decent-signal-adapter-local-chat')
 
 /**
- * Example for local node end to end encrypted chat.
- * Run the scripts from package.json to see them communicate with each other.
- * See that 1. single chat can have multiple parties, 2. nodes with wrong pass cannot join.
- *
- * If the ranks of the users differ by more than 1 then they do not connect.
+ * Example for node + crypto + public key communication + local chat as a channel + party system.
+ * If the ids of the users differ by more than 1 then they do not connect.
+ * Notice that nodes with wrong pass cannot join a party.
  */
 class Demo {
   /**
@@ -93,7 +95,7 @@ class Demo {
  */
 async function main () {
   RxDB.addRxPlugin(snappy)
-  const db = await RxDB.createRxDatabase({ name: 'channel', adapter: 'snappy' })
+  const db = await RxDB.createRxDatabase({ name: 'demo', adapter: 'snappy' })
   const demo = new Demo(db, { id: process.argv[2], party: process.argv[3], pass: process.argv[4] })
   await demo.start()
   setTimeout(async () => {

@@ -13,7 +13,7 @@ export class DecentSignalLocalChat extends DecentSignalChat {
     super()
     this._db = db
     this._user = user
-    this._onCollectionChange = (change) => this._handleMessage(change.documentData)
+    this._onCollectionChanged = (change) => this._handleMessage(change.documentData)
   }
 
   /**
@@ -35,18 +35,18 @@ export class DecentSignalLocalChat extends DecentSignalChat {
    */
   async joinChat () {
     await this._db.collection({ name: 'messages', schema: DecentSignalLocalChat.SCHEMA })
-    this._db.messages.insert$.subscribe(this._onCollectionChange)
+    this._db.messages.insert$.subscribe(this._onCollectionChanged)
   }
 
   /**
-   * Stop listening to updates in the database.
+   * Stop listening to updates in the collection.
    */
   async leaveChat () {
     await this._db.messages.destroy()
   }
 
   /**
-   * Send message to a user.
+   * Send message by adding it to the collection.
    * @param {DecentSignalUser | undefined} to
    * @param {DecentSignalMessage} message
    */
