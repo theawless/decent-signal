@@ -5,7 +5,7 @@
   },
   "dependencies": {
     "decent-signal": "file:../..",
-    "decent-signal-adapter-local-chat": "file:../../adapters/local-chat",
+    "decent-signal-adapter-local-server": "file:../../adapters/local-server",
     "decent-signal-adapter-subtle-crypto": "file:../../adapters/subtle-crypto"
   },
   "devDependencies": {
