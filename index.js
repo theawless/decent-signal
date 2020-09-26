@@ -452,7 +452,7 @@ export class DecentSignalCommunicator {
    * Remove contact of a user.
    * @param {DecentSignalUser} of
    */
-  async removeContact (of) {}
+  removeContact (of) {}
 
   /**
    * Encrypt plain text for a user.
@@ -508,7 +508,7 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    * Remove contact of a user.
    * @param {DecentSignalUser} of
    */
-  async removeContact (of) {
+  removeContact (of) {
     this._keyss.delete(of.id)
   }
 
@@ -520,7 +520,12 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    */
   async encryptText (to, text) {
     const keys = this._keyss.get(to.id)
-    return this._crypto.publicEncrypt(keys.public, text)
+    const secret = await this._crypto.generateSecret()
+    const encrypt = await Promise.all([
+      this._crypto.publicEncrypt(keys.public, secret),
+      this._crypto.secretEncrypt(secret, text)
+    ])
+    return JSON.stringify({ secret: encrypt[0], text: encrypt[1] })
   }
 
   /**
@@ -530,7 +535,9 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    * @returns {Promise<string>}
    */
   async decryptText (from, text) {
-    return this._crypto.privateDecrypt(this._keys.private, text)
+    const encrypt = JSON.parse(text)
+    const secret = await this._crypto.privateDecrypt(this._keys.private, encrypt.secret)
+    return this._crypto.secretDecrypt(secret, encrypt.text)
   }
 }
 
@@ -563,26 +570,34 @@ export class DecentSignal {
    * @param {DecentSignalUser} to
    */
   async connectUser (to) {
-    try {
-      const contact = await this._server.getContact(to)
-      await this._communicator.setContact(to, contact)
-      this._users.set(to.id, to)
-    } catch (e) {
-      console.error(`Not able to connect with user ${to.id}.`)
-    }
+    const contact = await this._server.getContact(to)
+    await this._communicator.setContact(to, contact)
+    this._users.set(to.id, to)
   }
 
   /**
-   * Get users that are connected or all on server.
-   * @param {boolean} connected
+   * Disconnect from a peer on the server.
+   * @param {DecentSignalUser} from
+   */
+  disconnectPeer (from) {
+    this._communicator.removeContact(from)
+    this._users.delete(from.id)
+  }
+
+  /**
+   * Get connected users.
+   * @returns {DecentSignalUser[]}
+   */
+  getPeers () {
+    return [...this._users.values()]
+  }
+
+  /**
+   * Get all users on the server.
    * @returns {Promise<DecentSignalUser[]>}
    */
-  async getUsers (connected) {
-    if (connected) {
-      return [...this._users.values()]
-    } else {
-      return this._server.getUsers()
-    }
+  async getUsers () {
+    return this._server.getUsers()
   }
 
   /**
@@ -616,10 +631,6 @@ export class DecentSignal {
    * @param {DecentSignalMessage} message
    */
   async sendMessage (to, message) {
-    if (!this._users.has(to.id)) {
-      console.error(`Cannot send signal to unconnected user ${to.id}.`)
-      return
-    }
     message.text = await this._communicator.encryptText(to, message.text)
     await this._server.sendMessage(to, message)
   }
@@ -634,21 +645,21 @@ export class DecentSignal {
 
   /**
    * Handler for user actions on the server.
-   * @param {DecentSignalUser} from
+   * @param {DecentSignalUser} user
    * @param {string} action
    */
-  async _handleUser (from, action) {
+  async _handleUser (user, action) {
     if (action === 'seen') {
-      this.events.emit('user-seen', from)
-    } else if (action === 'left') {
-      if (this._users.has(from.id)) {
-        await this._communicator.removeContact(from)
-        this._users.delete(from.id)
-      }
-      this.events.emit('user-left', from)
+      this.events.emit('user-seen', user)
     } else if (action === 'reset') {
-      if (this._users.has(from.id)) {
-        await this.connectUser(from)
+      if (this._users.has(user.id)) {
+        this.disconnectPeer(user)
+        await this.connectUser(user)
+      }
+    } else if (action === 'left') {
+      if (this._users.has(user.id)) {
+        this.disconnectPeer(user)
+        this.events.emit('user-left', user)
       }
     }
   }
@@ -662,7 +673,11 @@ export class DecentSignal {
     if (!this._users.has(from.id)) {
       return
     }
-    message.text = await this._communicator.decryptText(from, message.text)
-    this.events.emit('message-received', from, message)
+    try {
+      message.text = await this._communicator.decryptText(from, message.text)
+      this.events.emit('message-received', from, message)
+    } catch (e) {
+      console.log(`Getting weird data from user ${from.id}.`)
+    }
   }
 }
