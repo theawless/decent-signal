@@ -8,8 +8,8 @@
     <link href="https://unpkg.com/picnic/picnic.min.css" rel="stylesheet">
     <link href="index.css" rel="stylesheet">
     <script src="https://unpkg.com/simple-peer/simplepeer.min.js"></script>
-    <!-- TODO: Use a proper CDN after https://github.com/matrix-org/matrix-js-sdk/issues/1383 is fixed. -->
-    <script src="https://github.com/matrix-org/matrix-js-sdk/releases/download/v6.1.0/browser-matrix.min.js"></script>
+    <script src="https://unpkg.com/simple-drawing-board/dist/simple-drawing-board.min.js"></script>
+    <script src="https://unpkg.com/matrix-js-sdk/dist/browser-matrix.min.js"></script>
     <script src="https://unpkg.com/decent-signal/dist/decent-signal.browser.js"></script>
     <script src="https://unpkg.com/decent-signal-adapter-matrix-chat/dist/decent-signal-adapter-matrix-chat.browser.js"></script>
     <script src="https://unpkg.com/decent-signal-adapter-subtle-crypto/dist/decent-signal-adapter-subtle-crypto.browser.js"></script>
@@ -17,57 +17,60 @@
 </head>
 <body>
 <main>
-    <article class="card">
-        <header>
-            <label><strong>Vanilla example</strong></label>
-        </header>
-        <section>
-            <label>Example for browser + simple peer + matrix im + full mesh network.</label>
-        </section>
-        <footer>
+    <div class="flex one two-800">
+        <div>
             <article class="card">
+                <section>
+                    <label><strong>
+                        Example for vanilla + subtle crypto + public key communication + matrix im + simple peer
+                    </strong></label>
+                </section>
                 <footer>
-                    <p id="status">Loading website...</p>
+                    <article class="card">
+                        <p id="status">Loading page...</p>
+                    </article>
                 </footer>
             </article>
-        </footer>
-    </article>
-    <article class="card">
-        <section>
-            <div class="flex one two-800">
-                <div>
-                    <label for="loginId">Login id</label>
-                    <input id="loginId" placeholder="Login id for matrix..." type="text">
-                </div>
-                <div>
-                    <label for="loginPass">Login password</label>
-                    <input id="loginPass" placeholder="Login password for matrix..." type="password">
-                </div>
-            </div>
-        </section>
-        <section>
-            <div class="flex one two-800">
-                <div>
-                    <label for="party">Party name</label>
-                    <input id="party" placeholder="Party name for demo..." type="text">
-                </div>
-                <div>
-                    <label for="pass">Party password</label>
-                    <input id="pass" placeholder="Party password for demo..." type="password">
-                </div>
-            </div>
-        </section>
-        <footer>
-            <button class="success" id="start">Start signalling</button>
-            <button class="error" id="stop">Stop signalling</button>
-        </footer>
-    </article>
-    <article class="card">
-        <footer>
-            <label for="console">Console</label>
-            <textarea cols="60" id="console" readonly rows="12"></textarea>
-        </footer>
-    </article>
+            <article class="card">
+                <section>
+                    <label for="sketchpad">Drawing</label>
+                    <article class="card">
+                        <canvas id="sketchpad"></canvas>
+                    </article>
+                </section>
+                <footer>
+                    <button id="start" class="success">Start</button>
+                    <button id="stop" class="error">Stop</button>
+                </footer>
+            </article>
+        </div>
+        <div>
+            <article class="card">
+                <section>
+                    <div class="flex one two-800">
+                        <div>
+                            <label for="loginId">Login id</label>
+                            <input id="loginId" placeholder="Login id for matrix..." type="text">
+                        </div>
+                        <div>
+                            <label for="loginPass">Login password</label>
+                            <input id="loginPass" placeholder="Login password for matrix..." type="password">
+                        </div>
+                    </div>
+                </section>
+                <footer>
+                    <button id="login" class="success">Login</button>
+                    <button id="logout" class="error">Logout</button>
+                </footer>
+            </article>
+            <article class="card">
+                <footer>
+                    <label for="console">Console</label>
+                    <textarea cols="40" id="console" readonly rows="16"></textarea>
+                </footer>
+            </article>
+        </div>
+    </div>
 </main>
 <script src="index.js"></script>
 </body>

@@ -1,89 +1,126 @@
 /**
- * Example for browser + simple peer + matrix im + full mesh network.
- * See that 1. one channel can have multiple parties 2. nodes with wrong pass cannot join.
- * Serve and open the urls nodes in README to see them perform signalling and then say hi! to each other.
- * Every user connects with every other user.
+ * Example for vanilla + subtle crypto + public key communication + matrix im + simple peer.
  */
-class HelloWorld {
+class Demo {
   /**
    * @param {MatrixClient} client
-   * @param {string} room
-   * @param {string} party
-   * @param {string} pass
+   * @param {SimpleDrawingBoard} pad
+   * @param {{room: string}} options
    */
-  constructor (client, { room, party, pass }) {
-    this._crypto = new window.decentSignal.DecentSignalSubtleCrypto()
+  constructor (client, pad, { room }) {
+    this._pad = pad
     this._user = new window.decentSignal.DecentSignalUser(client.getUserId())
-    this._chat = new window.decentSignal.DecentSignalMatrixChat(client, room)
-    this._signal = new window.decentSignal.DecentSignal(this._user, this._chat, this._crypto, { party, pass })
+    this._chat = new window.decentSignal.DecentSignalMatrixChat(client, { room })
+    const channel = new window.decentSignal.DecentSignalChannel(this._chat)
+    const crypto = new window.decentSignal.DecentSignalSubtleCrypto()
+    const communicator = new window.decentSignal.DecentSignalPublicKeyCommunicator(crypto)
+    this._signal = new window.decentSignal.DecentSignal(communicator, channel)
     this._peers = new Map() // map of user id to peer
-    this._onUserSeen = (user, accept) => this._handleSeen(user, accept).then()
-    this._onNodeDiscovery = (node) => this._handleDiscovery(node).then()
-    this._onSignalReceived = (node, data) => this._handleSignal(node, data).then()
+    this._onUserSeen = (user) => this._handleUser(user, true).then()
+    this._onUserLeft = (user) => this._handleUser(user, false).then()
+    this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
+    this._setupUI()
   }
 
   /**
    * Start the demo.
-   * @returns {Promise<void>}
    */
   async start () {
-    await this._chat.startListening()
     await this._signal.startSignalling()
     this._signal.events.connect('user-seen', this._onUserSeen)
-    this._signal.events.connect('node-discovered', this._onNodeDiscovery)
-    this._signal.events.connect('signal-received', this._onSignalReceived)
+    this._signal.events.connect('user-left', this._onUserLeft)
+    this._signal.events.connect('message-received', this._onMessageReceived)
+    for (const user of await this._signal.getUsers()) {
+      await this._handleUser(user, true)
+    }
   }
 
   /**
    * Stop the demo.
-   * @returns {Promise<void>}
    */
   async stop () {
-    this._signal.events.disconnect('signal-received', this._onSignalReceived)
-    this._signal.events.disconnect('node-discovered', this._onNodeDiscovery)
+    for (const peer of this._peers.values()) {
+      peer.destroy()
+    }
+    this._signal.events.disconnect('message-received', this._onMessageReceived)
     this._signal.events.disconnect('user-seen', this._onUserSeen)
+    this._signal.events.disconnect('user-left', this._onUserLeft)
     await this._signal.stopSignalling()
-    await this._chat.stopListening()
   }
 
   /**
-   * Decide whether we want to do handshake with the user.
-   * @param {DecentSignalLocalChatUser} user
-   * @param {function():void} accept
-   * @returns {Promise<void>}
+   * Handle user updates by starting webrtc connections.
+   * @param {DecentSignalUser} user
+   * @param {boolean} active
    */
-  async _handleSeen (user, accept) {
-    accept()
-  }
-
-  /**
-   * Create a new peer connection for each node.
-   * @param {DecentSignalNode} node
-   * @returns {Promise<void>}
-   */
-  async _handleDiscovery (node) {
-    const peer = new window.SimplePeer({ initiator: this._user.id < node.user.id })
-    this._peers.set(node.user.id, peer)
+  async _handleUser (user, active) {
+    if (!active) {
+      console.info(`User ${user.id} has left matrix chat.`)
+      this._peers.get(user.id).destroy()
+      return
+    }
+    console.info(`User ${user.id} seen on matrix chat.`)
+    await this._signal.connectUser(user)
+    const peer = new window.SimplePeer({ initiator: this._user.id > user.id })
     peer.on('signal', (data) => {
-      this._signal.sendSignal(node, JSON.stringify(data)).then()
+      console.info(`Sending signalling data to ${user.id}.`)
+      const message = new DecentSignalMessage(JSON.stringify(data))
+      this._signal.sendMessage(user, message).then()
+    })
+    peer.on('data', (data) => {
+      this._pad.fillImageByDataURL(data).then()
     })
     peer.on('connect', () => {
-      peer.send(`Hello from ${this._user.id}!`)
+      console.info(`Webrtc connection established with ${user.id}.`)
     })
-    peer.on('data', data => {
-      console.info(`Got a message: "${data}".`)
+    peer.on('close', () => {
+      console.info(`Webrtc connection closed with ${user.id}.`)
     })
+    peer.on('error', () => {
+      console.info(`Webrtc connection errored with ${user.id}.`)
+    })
+    this._peers.set(user.id, peer)
   }
 
   /**
-   * Pass the signalling data to simple peer.
-   * @param {DecentSignalNode} node
-   * @param {string} data
-   * @returns {Promise<void>}
+   * Handle signalling data when it arrives from the other user.
+   * @param {DecentSignalUser} from
+   * @param {DecentSignalMessage} message
    */
-  async _handleSignal (node, data) {
-    const peer = this._peers.get(node.user.id)
+  async _handleMessage (from, message) {
+    console.info(`Received signalling data from ${from.id}.`)
+    const peer = this._peers.get(from.id)
     peer.signal(JSON.parse(data))
+  }
+
+  /**
+   * Setup the ui functionality.
+   */
+  _setupUI () {
+    document.getElementById('start').addEventListener('click', () => {
+      document.getElementById('start').disabled = true
+      setStatus('Starting...')
+      this.start().then(() => {
+        document.getElementById('stop').disabled = false
+        setStatus('Signalling...')
+      })
+    })
+    document.getElementById('stop').addEventListener('click', () => {
+      document.getElementById('stop').disabled = true
+      setStatus('Stopping...')
+      this.stop().then(() => {
+        document.getElementById('start').disabled = false
+        setStatus('Stopped...')
+      })
+    })
+    this._pad.observer.on('drawEnd', (_) => {
+      const data = this._pad.toDataURL()
+      for (const peer of this._peers.values()) {
+        if (peer.connected) {
+          peer.send(data)
+        }
+      }
+    })
   }
 }
 
@@ -93,62 +130,92 @@ class HelloWorld {
  */
 console.info = function (...args) {
   const message = args.map(x => typeof x === 'object' ? JSON.stringify(x) : x)
-  document.getElementById('console').textContent += message + '\n'
+  document.getElementById('console').textContent += `${message}\n`
+}
+
+/**
+ * Updates the status on the page.
+ * @param text
+ */
+function setStatus (text) {
+  document.getElementById('status').innerHTML = text
+}
+
+/**
+ * Generate a random color in RGBA format.
+ */
+function randomColor () {
+  const num = Math.round(0xffffff * Math.random())
+  return `rgb(${num >> 16},${num >> 8 & 255},${num & 255},1)`
 }
 
 /**
  * Async main function.
- * @returns {Promise<void>}
  */
 async function main () {
-  const room = '!amsfoHspuicqIckjff:matrix.org' // #decent-signal-demo:matrix.org room
-  document.getElementById('status').innerHTML = 'Ready...'
-  let client, demo
-  document.getElementById('start').addEventListener('click', () => {
-    const user = document.getElementById('loginId').value
-    const password = document.getElementById('loginPass').value
-    const party = document.getElementById('party').value
-    const pass = document.getElementById('pass').value
-    if (user === '' || password === '' || party === '' || pass === '') {
-      window.alert('Please provide all the fields in the form!')
-      return
-    }
-    if (client !== undefined || demo !== undefined) {
-      return
-    }
-    document.getElementById('status').innerText = 'Starting...'
-    client = window.matrixcs.createClient('https://matrix.org')
-    client.login('m.login.password', { user, password })
-      .then(() => client.clearStores())
-      .then(() => client.startClient({ initialSyncLimit: 0, lazyLoadMembers: true }))
-      .then(() => client.joinRoom(room))
-      .then(() => { demo = new HelloWorld(client, { room, party, pass }) })
-      .then(() => demo.start())
-      .then(() => { document.getElementById('status').innerText = 'Signalling...' })
+  document.getElementById('login').disabled = false
+  document.getElementById('logout').disabled = true
+  document.getElementById('start').disabled = true
+  document.getElementById('stop').disabled = true
+  const pad = window.SimpleDrawingBoard.create(document.getElementById('sketchpad'))
+  pad.setLineColor(randomColor())
+  pad.observer.on('drawBegin', (_) => {
+    document.getElementById('loginId').blur()
+    document.getElementById('loginPass').blur()
   })
-  document.getElementById('stop').addEventListener('click', () => {
-    if (demo === undefined || client === undefined) {
-      return
-    }
-    document.getElementById('status').innerText = 'Stopping...'
-    demo.stop()
-      .then(() => { demo = undefined })
-      .then(() => client.leave(room))
-      .then(() => { client = undefined })
-      .then(() => { document.getElementById('status').innerText = 'Stopped...' })
+  document.getElementById('logout').addEventListener('click', () => {
+    document.getElementById('logout').disabled = true
+    setStatus('Logging out...')
+    window.localStorage.removeItem('decent-signal-matrix-chat-user-id')
+    window.localStorage.removeItem('decent-signal-matrix-chat-access-token')
+    setStatus('Refreshing page...')
+    window.location.reload()
   })
-  window.onbeforeunload = () => {
-    if (demo === undefined || client === undefined) {
-      return
-    }
-    document.getElementById('status').innerText = 'Closing...'
-    demo.stop()
-      .then(() => { demo = undefined })
-      .then(() => client.leave(room))
-      .then(() => { client = undefined })
-      .then(() => { document.getElementById('status').innerText = 'Closed...' })
-    return ''
+  setStatus('Ready...')
+  const room = '!amsfoHspuicqIckjff:matrix.org' // decent-signal-demo
+  const userId = window.localStorage.getItem('decent-signal-matrix-chat-user-id')
+  const accessToken = window.localStorage.getItem('decent-signal-matrix-chat-access-token')
+  const client = window.matrixcs.createClient({ baseUrl: 'https://matrix.org', userId, accessToken })
+  const demo = new Demo(client, pad, { room })
+  if (userId && accessToken) {
+    setStatus('Logged in...')
+    document.getElementById('login').disabled = true
+    document.getElementById('logout').disabled = false
+    document.getElementById('start').disabled = false
+  } else {
+    document.getElementById('login').addEventListener('click', () => {
+      const user = document.getElementById('loginId').value
+      const password = document.getElementById('loginPass').value
+      if (user === '' || password === '') {
+        window.alert('Please provide all the fields in the form!')
+        return
+      }
+      document.getElementById('login').disabled = true
+      setStatus('Logging in...')
+      client.login('m.login.password', { user, password, device_id: `dummy-device-${room}` })
+        .then(() => {
+          window.localStorage.setItem('decent-signal-matrix-chat-user-id', client.getUserId())
+          window.localStorage.setItem('decent-signal-matrix-chat-access-token', client.getAccessToken())
+          setStatus('Logged in...')
+          document.getElementById('logout').disabled = false
+          document.getElementById('start').disabled = false
+        })
+        .catch(() => {
+          document.getElementById('login').disabled = false
+          setStatus('Login failed...')
+        })
+    })
   }
+  const clean = (event) => {
+    setStatus('Closing...')
+    demo.stop().then(() => {
+      window.removeEventListener('beforeunload', clean)
+      setStatus('Closed...')
+    })
+    event.preventDefault()
+    event.returnValue = ''
+  }
+  window.addEventListener('beforeunload', clean)
 }
 
 main().then()

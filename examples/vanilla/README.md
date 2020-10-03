@@ -1,6 +1,6 @@
 # decent-signal-example-vanilla
 
-Example for browser + simple peer + matrix im + full mesh network.
+Example for vanilla + subtle crypto + public key communication + matrix im + simple peer.
 
 ## Demo
 
