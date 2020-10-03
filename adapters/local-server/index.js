@@ -1,10 +1,4 @@
-import {
-  DecentSignalContact,
-  DecentSignalEvents,
-  DecentSignalMessage,
-  DecentSignalServer,
-  DecentSignalUser
-} from 'decent-signal'
+import { DecentSignalContact, DecentSignalEvents, DecentSignalServer, DecentSignalUser } from 'decent-signal'
 import { DecentSignalLocalChat } from 'decent-signal-local-chat'
 
 /**

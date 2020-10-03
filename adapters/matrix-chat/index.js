@@ -61,7 +61,7 @@ export class DecentSignalMatrixChat extends DecentSignalChat {
         rooms: [this._options.room],
         timeline: {
           limit: 0,
-          types: ['m.room.message'],
+          types: ['m.room.message']
         }
       }
     }

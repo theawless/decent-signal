@@ -64,7 +64,7 @@ class Demo {
     const peer = new window.SimplePeer({ initiator: this._user.id > user.id })
     peer.on('signal', (data) => {
       console.info(`Sending signalling data to ${user.id}.`)
-      const message = new DecentSignalMessage(JSON.stringify(data))
+      const message = new window.decentSignal.DecentSignalMessage(JSON.stringify(data))
       this._signal.sendMessage(user, message).then()
     })
     peer.on('data', (data) => {
@@ -90,7 +90,7 @@ class Demo {
   async _handleMessage (from, message) {
     console.info(`Received signalling data from ${from.id}.`)
     const peer = this._peers.get(from.id)
-    peer.signal(JSON.parse(data))
+    peer.signal(JSON.parse(message.text))
   }
 
   /**
