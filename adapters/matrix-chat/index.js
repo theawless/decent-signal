@@ -1,71 +1,93 @@
-import { DecentSignalChannel, DecentSignalMessage, DecentSignalUser } from 'decent-signal'
+import { DecentSignalChat, DecentSignalMessage, DecentSignalUser } from 'decent-signal'
 
 /**
  * Abstraction over matrix instant messaging system.
  */
-export class DecentSignalMatrixChat extends DecentSignalChannel {
+export class DecentSignalMatrixChat extends DecentSignalChat {
   /**
-   * The client should be fully initialized.
+   * The client should be already logged in.
    * @param {MatrixClient} client
-   * @param {string} room
+   * @param {{room: string}} options
    */
-  constructor (client, room) {
+  constructor (client, options) {
     super()
     this._client = client
-    this._room = room
+    this._options = options
     this._onRoomEvent = (event) => this._handleEvent(event)
   }
 
   /**
-   * Start listening to events in the room.
-   * TODO: Add a filter to ignore receiving unnecessary events.
-   * @returns {Promise<void>}
+   * Start the client, join the room, and start listening to room events.
    */
-  async startListening () {
+  async joinChat () {
+    const filter = await this._client.createFilter(this._buildFilter())
+    await this._client.startClient({ filter })
+    await this._client.joinRoom(this._options.room)
     this._client.on('Room.timeline', this._onRoomEvent)
   }
 
   /**
-   * Stop listening to updates in the room.
-   * @returns {Promise<void>}
+   * Stop listening to room events, leave the room, and stop the client.
    */
-  async stopListening () {
+  async leaveChat () {
     this._client.removeListener('Room.timeline', this._onRoomEvent)
+    await this._client.leave(this._options.room)
+    this._client.stopClient()
+  }
+
+  /**
+   * Send message by creating an event in the room.
+   * @param {DecentSignalUser | undefined} to
+   * @param {DecentSignalMessage} message
+   */
+  async sendMessage (to, message) {
+    const content = {
+      body: JSON.stringify({
+        to: to === undefined ? '' : to.id,
+        text: message.text
+      }),
+      msgtype: 'm.text'
+    }
+    await this._client.sendEvent(this._options.room, 'm.room.message', content)
+  }
+
+  /**
+   * Create a filter that reduces the number of events we listen to.
+   * TODO: Can this be made better?
+   */
+  _buildFilter () {
+    return {
+      room: {
+        rooms: [this._options.room],
+        timeline: {
+          limit: 0,
+          types: ['m.room.message'],
+        }
+      }
+    }
   }
 
   /**
    * Handler for timeline event.
-   * @param event {object}
+   * @param event {MatrixEvent}
    */
   _handleEvent (event) {
     if (event.getType() !== 'm.room.message' || event.getContent().msgtype !== 'm.text') {
       return
     }
-    if (event.getRoomId() !== this._room) {
+    if (event.getRoomId() !== this._options.room || event.getSender() === this._client.getUserId()) {
       return
     }
-    const from = new DecentSignalUser(event.getSender())
-    const doc = JSON.parse(event.getContent().body)
-    const to = doc.to === '' ? undefined : new DecentSignalUser(doc.to)
-    const message = new DecentSignalMessage(doc.party, to, doc.type, doc.message)
-    this.events.emit('message-received', from, message)
-  }
-
-  /**
-   * Send message to the channel.
-   * @param {DecentSignalMessage} message
-   * @returns {Promise<void>}
-   */
-  async sendMessage (message) {
-    const content = {
-      body: JSON.stringify({
-        to: message.to === undefined ? '' : message.to.id,
-        party: message.party,
-        type: message.type,
-        message: message.message
-      }),
-      msgtype: 'm.text'
+    try {
+      const { to, text } = JSON.parse(event.getContent().body)
+      if (to !== '' && to !== this._client.getUserId()) {
+        return
+      }
+      const from = new DecentSignalUser(event.getSender())
+      const message = new DecentSignalMessage(text)
+      this.events.emit('message-received', from, message)
+    } catch (e) {
+      console.log(`Getting weird data from user ${event.getSender()}.`)
     }
-    await this._client.sendEvent(this._room, 'm.room.message', content, '')
   }
 }
