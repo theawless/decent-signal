@@ -31,7 +31,7 @@ export class DecentSignalLocalServer extends DecentSignalServer {
   /**
    * @returns {object}
    */
-  static get SCHEMA () {
+  static get _SCHEMA () {
     return {
       version: 0,
       properties: {
@@ -76,7 +76,7 @@ export class DecentSignalLocalServer extends DecentSignalServer {
    * Start listening to all user update events.
    */
   async joinServer (contact) {
-    await this._db.collection({ name: 'users', schema: DecentSignalLocalServer.SCHEMA })
+    await this._db.collection({ name: 'users', schema: DecentSignalLocalServer._SCHEMA })
     this._db.users.insert$.subscribe(this._onEntryInserted)
     this._db.users.remove$.subscribe(this._onEntryRemoved)
     this._db.users.update$.subscribe(this._onEntryUpdated)

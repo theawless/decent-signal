@@ -69,8 +69,9 @@ export class DecentSignalLocalChat extends DecentSignalChat {
     if (entry.from_id === this._user.id) {
       return
     }
-    if (entry.to_id === '' || entry.to_id === this._user.id) {
-      this.events.emit('message-received', from, message)
+    if (entry.to_id !== '' && entry.to_id !== this._user.id) {
+      return
     }
+    this.events.emit('message-received', from, message)
   }
 }

@@ -62,8 +62,6 @@ class Demo {
   async _handleUser (user, active) {
     if (!active) {
       this._peers.get(user.id).close()
-      this._peers.delete(user.id)
-      this._feeds.delete(user.id)
       this._updateServerPeers()
       return
     }
@@ -72,7 +70,7 @@ class Demo {
     this._peers.set(user.id, peer)
     this._updateServerPeers()
     peer.addEventListener('icecandidate', async (event) => {
-      if (event.candidate && peer === this._peers.get(user.id)) {
+      if (event.candidate) {
         const message = new DecentSignalMessage(JSON.stringify({ ice: event.candidate }))
         await this._signal.sendMessage(user, message)
       }
@@ -80,7 +78,7 @@ class Demo {
     const initiator = this._user.id > user.id
     peer.addEventListener('connectionstatechange', () => {
       this._updateWebrtcPeers()
-      if (initiator && peer.connectionState === 'failed' && peer === this._peers.get(user.id)) {
+      if (initiator && peer.connectionState === 'failed') {
         console.log(`Re-initiating connection with user ${user.id}`)
         peer.restartIce()
       }
@@ -137,7 +135,9 @@ class Demo {
         if (text) {
           this._handleWebrtcMessage(this._user, text)
           for (const feed of this._feeds.values()) {
-            feed.send(text)
+            if (feed.readyState === 'open') {
+              feed.send(text)
+            }
           }
         }
       }
@@ -149,8 +149,8 @@ class Demo {
    */
   _updateServerPeers () {
     let text = ''
-    for (const user of this._peers.keys()) {
-      text += `${user}\n`
+    for (const user of this._signal.getPeers()) {
+      text += `${user.id}\n`
     }
     document.getElementById('server-peers').textContent = text
   }
