@@ -68,7 +68,7 @@ class Demo {
       this._signal.sendMessage(user, message).then()
     })
     peer.on('data', (data) => {
-      this._pad.fillImageByDataURL(data).then()
+      this._pad.fillImageByDataURL(JSON.parse(data)).then()
     })
     peer.on('connect', () => {
       console.info(`Webrtc connection established with ${user.id}.`)
@@ -97,24 +97,27 @@ class Demo {
    * Setup the ui functionality.
    */
   _setupUI () {
-    document.getElementById('start').addEventListener('click', () => {
-      document.getElementById('start').disabled = true
+    start.addEventListener('click', () => {
+      start.disabled = true
       setStatus('Starting...')
       this.start().then(() => {
-        document.getElementById('stop').disabled = false
+        stop.disabled = false
         setStatus('Signalling...')
+      }).catch(() => {
+        setStatus('Signalling failed...')
+        start.disabled = false
       })
     })
-    document.getElementById('stop').addEventListener('click', () => {
-      document.getElementById('stop').disabled = true
+    stop.addEventListener('click', () => {
+      stop.disabled = true
       setStatus('Stopping...')
       this.stop().then(() => {
-        document.getElementById('start').disabled = false
+        start.disabled = false
         setStatus('Stopped...')
       })
     })
     this._pad.observer.on('drawEnd', (_) => {
-      const data = this._pad.toDataURL()
+      const data = JSON.stringify(this._pad.toDataURL())
       for (const peer of this._peers.values()) {
         if (peer.connected) {
           peer.send(data)
@@ -129,8 +132,10 @@ class Demo {
  * @param {...*} args
  */
 console.info = function (...args) {
+  const console = document.getElementById('console')
   const message = args.map(x => typeof x === 'object' ? JSON.stringify(x) : x)
-  document.getElementById('console').textContent += `${message}\n`
+  console.textContent += `${message}\n`
+  console.scrollTop = console.scrollHeight
 }
 
 /**
@@ -153,18 +158,20 @@ function randomColor () {
  * Async main function.
  */
 async function main () {
-  document.getElementById('login').disabled = false
-  document.getElementById('logout').disabled = true
-  document.getElementById('start').disabled = true
-  document.getElementById('stop').disabled = true
+  login.disabled = false
+  logout.disabled = true
+  start.disabled = true
+  stop.disabled = true
+  const loginId = document.getElementById('loginId')
+  const loginPass = document.getElementById('loginPass')
   const pad = window.SimpleDrawingBoard.create(document.getElementById('sketchpad'))
   pad.setLineColor(randomColor())
   pad.observer.on('drawBegin', (_) => {
-    document.getElementById('loginId').blur()
-    document.getElementById('loginPass').blur()
+    loginId.blur()
+    loginPass.blur()
   })
-  document.getElementById('logout').addEventListener('click', () => {
-    document.getElementById('logout').disabled = true
+  logout.addEventListener('click', () => {
+    logout.disabled = true
     setStatus('Logging out...')
     window.localStorage.removeItem('decent-signal-matrix-chat-user-id')
     window.localStorage.removeItem('decent-signal-matrix-chat-access-token')
@@ -172,38 +179,38 @@ async function main () {
     window.location.reload()
   })
   setStatus('Ready...')
-  const room = '!amsfoHspuicqIckjff:matrix.org' // decent-signal-demo
+  const room = '!pWVvtzxmhMBKhfkrIy:matrix.org' // decent-signal-github-demo
   const userId = window.localStorage.getItem('decent-signal-matrix-chat-user-id')
   const accessToken = window.localStorage.getItem('decent-signal-matrix-chat-access-token')
   const client = window.matrixcs.createClient({ baseUrl: 'https://matrix.org', userId, accessToken })
   const demo = new Demo(client, pad, { room })
   if (userId && accessToken) {
     setStatus('Logged in...')
-    document.getElementById('login').disabled = true
-    document.getElementById('logout').disabled = false
-    document.getElementById('start').disabled = false
+    login.disabled = true
+    logout.disabled = false
+    start.disabled = false
   } else {
-    document.getElementById('login').addEventListener('click', () => {
-      const user = document.getElementById('loginId').value
-      const password = document.getElementById('loginPass').value
-      if (user === '' || password === '') {
+    login.addEventListener('click', () => {
+      if (loginId.value === '' || loginPass.value === '') {
         window.alert('Please provide all the fields in the form!')
         return
       }
-      document.getElementById('login').disabled = true
+      login.disabled = true
       setStatus('Logging in...')
-      client.login('m.login.password', { user, password, device_id: `dummy-device-${room}` })
-        .then(() => {
-          window.localStorage.setItem('decent-signal-matrix-chat-user-id', client.getUserId())
-          window.localStorage.setItem('decent-signal-matrix-chat-access-token', client.getAccessToken())
-          setStatus('Logged in...')
-          document.getElementById('logout').disabled = false
-          document.getElementById('start').disabled = false
-        })
-        .catch(() => {
-          document.getElementById('login').disabled = false
-          setStatus('Login failed...')
-        })
+      client.login('m.login.password', {
+        user: loginId.value,
+        password: loginPass.value,
+        device_id: `dummy-device-${room}`
+      }).then(() => {
+        window.localStorage.setItem('decent-signal-matrix-chat-user-id', client.getUserId())
+        window.localStorage.setItem('decent-signal-matrix-chat-access-token', client.getAccessToken())
+        setStatus('Logged in...')
+        logout.disabled = false
+        start.disabled = false
+      }).catch(() => {
+        login.disabled = false
+        setStatus('Login failed...')
+      })
     })
   }
   const clean = (event) => {
@@ -217,5 +224,10 @@ async function main () {
   }
   window.addEventListener('beforeunload', clean)
 }
+
+const login = document.getElementById('login')
+const logout = document.getElementById('logout')
+const start = document.getElementById('start')
+const stop = document.getElementById('stop')
 
 main().then()
