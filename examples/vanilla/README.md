@@ -4,7 +4,12 @@ Example for vanilla + subtle crypto + public key communication + matrix im + sim
 
 ## Demo
 
-* Open https://theawless.github.io/decent-signal/examples/vanilla
+* Open [github io page](https://theawless.github.io/decent-signal/examples/vanilla)
+
+OR
+
+* Serve with `npx serve` in the directory
+* Open [localhost](http://localhost:5000)
 
 ## Documentation
 

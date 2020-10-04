@@ -60,8 +60,14 @@ class Demo {
    * @param {boolean} active
    */
   async _handleUser (user, active) {
-    if (!active) {
+    if (this._peers.has(user.id)) {
+      console.info(`Closing old connection for user ${user.id}`)
       this._peers.get(user.id).close()
+      this._peers.delete(user.id)
+      this._updateWebrtcPeers()
+    }
+    if (!active) {
+      console.info(`User ${user.id} has left matrix chat.`)
       this._updateServerPeers()
       return
     }
@@ -69,6 +75,7 @@ class Demo {
     const peer = new window.RTCPeerConnection()
     this._peers.set(user.id, peer)
     this._updateServerPeers()
+    this._updateWebrtcPeers()
     peer.addEventListener('icecandidate', async (event) => {
       if (event.candidate) {
         const message = new DecentSignalMessage(JSON.stringify({ ice: event.candidate }))
@@ -149,8 +156,8 @@ class Demo {
    */
   _updateServerPeers () {
     let text = ''
-    for (const user of this._signal.getPeers()) {
-      text += `${user.id}\n`
+    for (const user of this._peers.keys()) {
+      text += `${user}\n`
     }
     document.getElementById('server-peers').textContent = text
   }
@@ -172,7 +179,9 @@ class Demo {
    * @param {DecentSignalMessage} message
    */
   _handleServerMessage (from, message) {
-    document.getElementById('server-messages').textContent += `${from.id}: ${message.text}\n`
+    const area = document.getElementById('server-messages')
+    area.textContent += `${from.id}: ${message.text}\n`
+    area.scrollTop = area.scrollHeight
   }
 
   /**
@@ -181,7 +190,9 @@ class Demo {
    * @param {string} message
    */
   _handleWebrtcMessage (from, message) {
-    document.getElementById('webrtc-messages').textContent += `${from.id}: ${message}\n`
+    const area = document.getElementById('webrtc-messages')
+    area.textContent += `${from.id}: ${message}\n`
+    area.scrollTop = area.scrollHeight
   }
 
   /**

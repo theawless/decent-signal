@@ -54,9 +54,12 @@ class Demo {
    * @param {boolean} active
    */
   async _handleUser (user, active) {
+    if (this._peers.has(user.id)) {
+      this._peers.get(user.id).destroy()
+      this._peers.delete(user.id)
+    }
     if (!active) {
       console.info(`User ${user.id} has left matrix chat.`)
-      this._peers.get(user.id).destroy()
       return
     }
     console.info(`User ${user.id} seen on matrix chat.`)
@@ -175,7 +178,7 @@ async function main () {
     setStatus('Logging out...')
     window.localStorage.removeItem('decent-signal-matrix-chat-user-id')
     window.localStorage.removeItem('decent-signal-matrix-chat-access-token')
-    setStatus('Refreshing page...')
+    setStatus('Reloading page...')
     window.location.reload()
   })
   setStatus('Ready...')
@@ -185,6 +188,7 @@ async function main () {
   const client = window.matrixcs.createClient({ baseUrl: 'https://matrix.org', userId, accessToken })
   const demo = new Demo(client, pad, { room })
   if (userId && accessToken) {
+    console.info(`Logging in using saved access token for ${userId}.`)
     setStatus('Logged in...')
     login.disabled = true
     logout.disabled = false

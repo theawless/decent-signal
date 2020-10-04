@@ -20,7 +20,7 @@ export class DecentSignalMatrixChat extends DecentSignalChat {
    * Start the client, join the room, and start listening to room events.
    */
   async joinChat () {
-    await this._client.clearStores()
+    await this._client.clearStores() // need to clear the cache status
     const filter = await this._client.createFilter(this._buildFilter())
     this._client.startClient({ filter })
     await this._client.joinRoom(this._options.room)
