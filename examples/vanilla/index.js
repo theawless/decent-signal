@@ -188,8 +188,7 @@ async function main () {
   const client = window.matrixcs.createClient({ baseUrl: 'https://matrix.org', userId, accessToken })
   const demo = new Demo(client, pad, { room })
   if (userId && accessToken) {
-    console.info(`Logging in using saved access token for ${userId}.`)
-    setStatus('Logged in...')
+    setStatus(`Logged in for ${userId}...`)
     login.disabled = true
     logout.disabled = false
     start.disabled = false
@@ -208,9 +207,8 @@ async function main () {
       }).then(() => {
         window.localStorage.setItem('decent-signal-matrix-chat-user-id', client.getUserId())
         window.localStorage.setItem('decent-signal-matrix-chat-access-token', client.getAccessToken())
-        setStatus('Logged in...')
-        logout.disabled = false
-        start.disabled = false
+        setStatus('Reloading page...')
+        window.location.reload()
       }).catch(() => {
         login.disabled = false
         setStatus('Login failed...')
