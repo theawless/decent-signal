@@ -1,0 +1,43 @@
+{
+  "name": "decent-signal-adapter-webtorrent-tracker",
+  "description": "Adapter for webtorrent tracker for decent-signal",
+  "license": "MIT",
+  "main": "dist/decent-signal-adapter-webtorrent-tracker.main.js",
+  "module": "dist/decent-signal-adapter-webtorrent-tracker.module.js",
+  "browser": "dist/decent-signal-adapter-webtorrent-tracker.browser.js",
+  "peerDependencies": {
+    "decent-signal": "*"
+  },
+  "devDependencies": {
+    "decent-signal": "file:../..",
+    "rollup": "latest"
+  },
+  "scripts": {
+    "prepare": "rollup -c"
+  },
+  "files": [
+    "dist"
+  ],
+  "version": "0.0.3",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theawless/decent-signal.git"
+  },
+  "bugs": {
+    "url": "https://github.com/theawless/decent-signal/issues"
+  },
+  "homepage": "https://theawless.github.io/decent-signal",
+  "author": {
+    "name": "Abhinav Singh",
+    "email": "theawless@gmail.com",
+    "url": "https://theawless.github.io"
+  },
+  "keywords": [
+    "p2p",
+    "webrtc",
+    "signalling",
+    "crypto",
+    "e2ee",
+    "im"
+  ]
+}

@@ -1,5 +1,3 @@
-const RxDB = require('rxdb')
-const snappy = require('pouchdb-adapter-snappy')
 const {
   DecentSignalPublicKeyCommunicator,
   DecentSignal,
@@ -8,26 +6,31 @@ const {
   DecentSignalUser,
   DecentSignalMessage
 } = require('decent-signal')
+const {
+  DecentSignalWebtorrentTracker,
+  DecentSignalWebtorrentTrackerUser
+} = require('decent-signal-adapter-webtorrent-tracker')
 const { DecentSignalNodeCrypto } = require('decent-signal-adapter-node-crypto')
-const { DecentSignalLocalChat } = require('decent-signal-adapter-local-chat')
+const WebSocket = require('websocket').w3cwebsocket
 
 /**
- * Example for node + crypto + public key communication + local chat as a channel + party system.
- * If the ids of the users differ by more than 1 then they do not connect.
+ * Example for node + crypto + public key communication + webtorrent tracker as a channel + party system.
+ * The setup is such that if the ids of the users differ by more than 1 then they do not connect.
  * Notice that nodes with wrong pass cannot join a party.
  */
 class Demo {
   /**
-   * @param {RxDatabaseBase} db
-   * @param {string} id
+   * @param {WebSocket} socket
+   * @param {string} peerId
+   * @param {string} infoHash
    * @param {string} party
    * @param {string} pass
    */
-  constructor (db, { id, party, pass }) {
-    this._user = new DecentSignalUser(id)
+  constructor (socket, { peerId, infoHash, party, pass }) {
+    this._user = new DecentSignalWebtorrentTrackerUser(peerId, infoHash)
     const crypto = new DecentSignalNodeCrypto()
     const communicator = new DecentSignalPublicKeyCommunicator(crypto)
-    const local = new DecentSignalLocalChat(db, this._user)
+    const local = new DecentSignalWebtorrentTracker(socket, this._user)
     const chat = new DecentSignalParty(local, crypto, { party, pass })
     const server = new DecentSignalChannel(chat)
     this._signal = new DecentSignal(communicator, server)
@@ -73,7 +76,7 @@ class Demo {
   async _handleUser (from, active) {
     if (active) {
       console.info(`User ${from.id} seen on the server.`)
-      if (Math.abs(parseInt(this._user.id) - parseInt(from.id)) === 1) {
+      if (this._shouldConnect(from)) {
         await this._signal.connectUser(from)
         console.info(`Connected to user ${from.id}.`)
         const message = new DecentSignalMessage(`Hello! from ${this._user.id}`)
@@ -85,23 +88,40 @@ class Demo {
       console.info(`User ${from.id} has left the server.`)
     }
   }
+
+  /**
+   * If we should connect to the user or not.
+   * @param {DecentSignalUser} from
+   * @returns {boolean}
+   */
+  _shouldConnect (from) {
+    const a = this._user.id.replace('peerIdPrefix-peerId', '')
+    const b = from.id.replace('peerIdPrefix-peerId', '')
+    return Math.abs(parseInt(a) - parseInt(b)) === 1
+  }
 }
 
 /**
  * Async main function.
- *
- * Snappy was the only plugin that supports database access from multiple processes.
- * Even the node-websql plugin did not work as documented on the rxdb website.
  */
 async function main () {
-  RxDB.addRxPlugin(snappy)
-  const db = await RxDB.createRxDatabase({ name: 'demo', adapter: 'snappy' })
-  const demo = new Demo(db, { id: process.argv[2], party: process.argv[3], pass: process.argv[4] })
+  const socket = new WebSocket('ws://localhost:8000')
+  await new Promise(resolve => {
+    socket.onopen = (_) => {
+      resolve()
+    }
+  })
+  const demo = new Demo(socket, {
+    peerId: 'peerIdPrefix-' + process.argv[2],
+    infoHash: 'hashPrefix-' + process.argv[3],
+    party: process.argv[4],
+    pass: process.argv[5]
+  })
   await demo.start()
   setTimeout(async () => {
     await demo.stop()
-    await db.destroy()
-  }, 10000)
+    socket.close()
+  }, 50_000)
 }
 
 main().then()
