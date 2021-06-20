@@ -77,7 +77,7 @@ class Demo {
     this._updateServerPeers()
     this._updateWebrtcPeers()
     peer.addEventListener('icecandidate', async (event) => {
-      if (event.candidate) {
+      if (event.candidate !== undefined) {
         const message = new DecentSignalMessage(JSON.stringify({ ice: event.candidate }))
         await this._signal.sendMessage(user, message)
       }
@@ -126,7 +126,7 @@ class Demo {
       if (event.key === 'Enter') {
         const text = serverInput.value.trim()
         serverInput.value = ''
-        if (text) {
+        if (text !== '') {
           const message = new DecentSignalMessage(text)
           this._handleServerMessage(this._user, message)
           this._server.sendMessage(undefined, message).then()
@@ -139,7 +139,7 @@ class Demo {
       if (event.key === 'Enter') {
         const text = webRtcInput.value.trim()
         webRtcInput.value = ''
-        if (text) {
+        if (text !== '') {
           this._handleWebrtcMessage(this._user, text)
           for (const feed of this._feeds.values()) {
             if (feed.readyState === 'open') {
@@ -203,15 +203,15 @@ class Demo {
   async _handleMessage (from, message) {
     const peer = this._peers.get(from.id)
     const signal = JSON.parse(message.text)
-    if (signal.answer) {
+    if (signal.answer !== undefined) {
       await peer.setRemoteDescription(new window.RTCSessionDescription(signal.answer))
-    } else if (signal.offer) {
+    } else if (signal.offer !== undefined) {
       await peer.setRemoteDescription(new window.RTCSessionDescription(signal.offer))
       const answer = await peer.createAnswer()
       await peer.setLocalDescription(answer)
       const message = new DecentSignalMessage(JSON.stringify({ answer: peer.localDescription }))
       await this._signal.sendMessage(from, message)
-    } else if (signal.ice) {
+    } else if (signal.ice !== undefined) {
       await peer.addIceCandidate(new window.RTCIceCandidate(signal.ice))
     }
   }

@@ -8,10 +8,11 @@ import { DecentSignalCryptography } from 'decent-signal'
 export class DecentSignalNodeCrypto extends DecentSignalCryptography {
   /**
    * Generate a secret randomly.
+   * @param {number} size
    * @returns {Promise<string>} hex encoded
    */
-  async generateSecret () {
-    return crypto.randomBytes(32).toString('hex')
+  async generateSecret (size) {
+    return crypto.randomBytes(size).toString('hex')
   }
 
   /**

@@ -16,10 +16,11 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
 
   /**
    * Generate a secret randomly.
+   * @param {number} size
    * @returns {Promise<string>} hex encoded
    */
-  async generateSecret () {
-    const random = window.crypto.getRandomValues(new Uint8Array(32))
+  async generateSecret (size) {
+    const random = window.crypto.getRandomValues(new Uint8Array(size))
     return this._hex(random)
   }
 

@@ -53,7 +53,7 @@ export class DecentSignalLocalChat extends DecentSignalChat {
   async sendMessage (to, message) {
     const doc = {
       from_id: this._user.id,
-      to_id: to === undefined ? '' : to.id,
+      to_id: to ? to.id : '',
       text: message.text
     }
     await this._db.messages.insert(doc)

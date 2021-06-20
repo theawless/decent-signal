@@ -54,9 +54,10 @@ export class DecentSignalEvents {
 export class DecentSignalCryptography {
   /**
    * Generate a secret randomly.
+   * @param {number} size
    * @returns {Promise<string>}
    */
-  async generateSecret () {}
+  async generateSecret (size) {}
 
   /**
    * Encrypt plain text with secret.
@@ -520,7 +521,7 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    */
   async encryptText (to, text) {
     const keys = this._keyss.get(to.id)
-    const secret = await this._crypto.generateSecret()
+    const secret = await this._crypto.generateSecret(32)
     const encrypt = await Promise.all([
       this._crypto.publicEncrypt(keys.public, secret),
       this._crypto.secretEncrypt(secret, text)

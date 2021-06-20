@@ -134,7 +134,7 @@ class Demo {
  * Log to the console widget on the page.
  * @param {...*} args
  */
-console.info = function (...args) {
+console.info = (...args) => {
   const console = document.getElementById('console')
   const message = args.map(x => typeof x === 'object' ? JSON.stringify(x) : x)
   console.textContent += `${message}\n`
@@ -187,7 +187,7 @@ async function main () {
   const accessToken = window.localStorage.getItem('decent-signal-matrix-chat-access-token')
   const client = window.matrixcs.createClient({ baseUrl: 'https://matrix.org', userId, accessToken })
   const demo = new Demo(client, pad, { room })
-  if (userId && accessToken) {
+  if (userId !== undefined && accessToken !== undefined) {
     setStatus(`Logged in for ${userId}...`)
     login.disabled = true
     logout.disabled = false

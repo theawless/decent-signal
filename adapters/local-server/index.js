@@ -104,7 +104,7 @@ export class DecentSignalLocalServer extends DecentSignalServer {
    */
   async _clearOld () {
     const doc = await this._db.users.findOne().where('id').eq(this._user.id).exec()
-    if (doc) {
+    if (doc !== undefined) {
       doc.remove()
     }
   }
