@@ -1,6 +1,6 @@
 # decent-signal-adapter-webtorrent-tracker
 
-Adapter for websocket server for decent-signal.
+Adapter for webtorrent tracker for decent-signal.
 
 ## Documentation
 
