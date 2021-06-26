@@ -27,7 +27,7 @@ class Demo {
    * @param {string} pass
    */
   constructor (socket, { peerId, infoHash, party, pass }) {
-    this._user = new DecentSignalWebtorrentTrackerUser(peerId, infoHash)
+    this._user = new DecentSignalWebtorrentTrackerUser(peerId, infoHash, 10)
     const crypto = new DecentSignalNodeCrypto()
     const communicator = new DecentSignalPublicKeyCommunicator(crypto)
     const local = new DecentSignalWebtorrentTracker(socket, this._user)
@@ -105,12 +105,16 @@ class Demo {
  * Async main function.
  */
 async function main () {
+  // Testing with local instance of openwebtorrent-tracker.
+  // const socket = new WebSocket('wss://localhost:8000', {}, {}, {}, {}, {
+  //   tlsOptions: {
+  //     rejectUnauthorized: false
+  //   }
+  // })
+  // Testing with local instance of bittorrent-tracker.
   const socket = new WebSocket('ws://localhost:8000')
-  await new Promise(resolve => {
-    socket.onopen = (_) => {
-      resolve()
-    }
-  })
+  socket.onclose = (evt) => console.error(`Socket closed due to ${evt.code}: ${evt.reason}`)
+  await new Promise(resolve => socket.onopen = (_) => resolve())
   const demo = new Demo(socket, {
     peerId: 'peerIdPrefix-' + process.argv[2],
     infoHash: 'hashPrefix-' + process.argv[3],

@@ -7,11 +7,13 @@ export class DecentSignalWebtorrentTrackerUser extends DecentSignalUser {
   /**
    * @param {string} peerId
    * @param {string} infoHash
+   * @param {number} numWant
    */
-  constructor (peerId, infoHash) {
+  constructor (peerId, infoHash, numWant = 5) {
     super(peerId)
     this._peerId = peerId
     this._infoHash = infoHash
+    this._numWant = numWant
   }
 
   /**
@@ -26,6 +28,13 @@ export class DecentSignalWebtorrentTrackerUser extends DecentSignalUser {
    */
   get infoHash () {
     return this._infoHash
+  }
+
+  /**
+   * @returns {number}
+   */
+  get numWant () {
+    return this._numWant
   }
 }
 
@@ -63,14 +72,21 @@ export class DecentSignalWebtorrentTracker extends DecentSignalChat {
 
   /**
    * Send message by updating the tracker.
+   * The trackers help establish webrtc signalling over websockets.
+   * They expect that only offers and answers are sent through them,
+   * but for our use case we have hack-ily sent our encrypted messages.
    * @param {DecentSignalUser | undefined} to
    * @param {DecentSignalMessage} message
    */
   async sendMessage (to, message) {
-    if (to === undefined) {
-      this._announce({ offers: [{ offer: message.text }] })
-    } else {
+    if (to) {
       this._announce({ to_peer_id: to.id, answer: message.text })
+    } else {
+      // just broadcast the same message to everybody
+      const offers = Array(this._user.numWant).fill({
+        offer: { sdp: message.text }, offer_id: 'notRandom'
+      })
+      this._announce({ offers })
     }
   }
 
@@ -83,7 +99,7 @@ export class DecentSignalWebtorrentTracker extends DecentSignalChat {
       action: 'announce',
       peer_id: this._user.peerId,
       info_hash: this._user.infoHash,
-      numwant: 50
+      numwant: this._user.numWant
     }
     const allOpts = { ...defaultOpts, ...opts }
     this._socket.send(JSON.stringify(allOpts))
@@ -97,15 +113,14 @@ export class DecentSignalWebtorrentTracker extends DecentSignalChat {
     if (data.info_hash !== this._user.infoHash) {
       return
     }
-    if (data.peer_id === undefined || data.peer_id === this._user.peerId) {
+    if (!data.peer_id || data.peer_id === this._user.peerId) {
       return
     }
-    console.log('wtf', data.info_hash, data.peer_id)
     const from = new DecentSignalUser(data.peer_id)
-    if (data.offer !== undefined) {
-      const message = new DecentSignalMessage(data.offer)
+    if (data.offer && data.offer.sdp) {
+      const message = new DecentSignalMessage(data.offer.sdp)
       this.events.emit('message-received', from, message)
-    } else if (data.answer !== undefined) {
+    } else if (data.answer) {
       const message = new DecentSignalMessage(data.answer)
       this.events.emit('message-received', from, message)
     }

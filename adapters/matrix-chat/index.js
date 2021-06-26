@@ -44,7 +44,7 @@ export class DecentSignalMatrixChat extends DecentSignalChat {
   async sendMessage (to, message) {
     const content = {
       body: JSON.stringify({
-        to: to === undefined ? '' : to.id,
+        to: to ? to.id : '',
         text: message.text
       }),
       msgtype: 'm.text'

@@ -187,7 +187,7 @@ async function main () {
   const accessToken = window.localStorage.getItem('decent-signal-matrix-chat-access-token')
   const client = window.matrixcs.createClient({ baseUrl: 'https://matrix.org', userId, accessToken })
   const demo = new Demo(client, pad, { room })
-  if (userId !== undefined && accessToken !== undefined) {
+  if (userId && accessToken) {
     setStatus(`Logged in for ${userId}...`)
     login.disabled = true
     logout.disabled = false
