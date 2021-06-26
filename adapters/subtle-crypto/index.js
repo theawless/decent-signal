@@ -2,7 +2,6 @@ import { DecentSignalCryptography } from 'decent-signal'
 
 /**
  * Cryptography functions that use browser's built in crypto.
- * TODO: Find a library for the hex to/from array conversion.
  */
 export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
   /**
@@ -17,18 +16,18 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
   /**
    * Generate a secret randomly.
    * @param {number} size
-   * @returns {Promise<string>} hex encoded
+   * @returns {Promise<string>} base64 encoded
    */
   async generateSecret (size) {
     const random = window.crypto.getRandomValues(new Uint8Array(size))
-    return this._hex(random)
+    return this._base64(random)
   }
 
   /**
    * Encrypt text by creating a key using PBKDF2 and performing AES.
    * @param {string} secret utf8 encoded
    * @param {string} text utf8 encoded
-   * @returns {Promise<string>} {salt, iv, encrypt} hex encoded
+   * @returns {Promise<string>} {salt, iv, enc} base64 encoded
    */
   async secretEncrypt (secret, text) {
     const key1 = await window.crypto.subtle.importKey('raw', this._enc.encode(secret), 'PBKDF2', false, ['deriveKey'])
@@ -37,27 +36,31 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
     const key2 = await window.crypto.subtle.deriveKey(algo, key1, { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
     const iv = window.crypto.getRandomValues(new Uint8Array(16))
     const encrypt = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key2, this._enc.encode(text))
-    return JSON.stringify({ salt: this._hex(salt), iv: this._hex(iv), encrypt: this._hex(new Uint8Array(encrypt)) })
+    return JSON.stringify({
+      salt: this._base64(salt),
+      iv: this._base64(iv),
+      enc: this._base64(new Uint8Array(encrypt))
+    })
   }
 
   /**
    * Decrypt text by creating a key using PBKDF2 and performing AES.
    * @param {string} secret utf8 encoded
-   * @param {string} text {salt, iv, encrypt} hex encoded
+   * @param {string} text {salt, iv, enc} base64 encoded
    * @returns {Promise<string>} utf8 encoded
    */
   async secretDecrypt (secret, text) {
-    const { salt, iv, encrypt } = JSON.parse(text)
+    const { salt, iv, enc } = JSON.parse(text)
     const key1 = await window.crypto.subtle.importKey('raw', this._enc.encode(secret), 'PBKDF2', false, ['deriveKey'])
     const algo = { name: 'PBKDF2', hash: 'SHA-512', salt: this._arr(salt), iterations: 100000 }
     const key2 = await window.crypto.subtle.deriveKey(algo, key1, { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
-    const decrypt = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: this._arr(iv) }, key2, this._arr(encrypt))
+    const decrypt = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: this._arr(iv) }, key2, this._arr(enc))
     return this._dec.decode(decrypt)
   }
 
   /**
    * Generate a public-private key pair using RSA.
-   * @returns {Promise<{public: string, private: string}>} hex encoded
+   * @returns {Promise<{public: string, private: string}>} base64 encoded
    */
   async generateKeys () {
     const algo = { name: 'RSA-OAEP', modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-512' }
@@ -66,26 +69,26 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
       window.crypto.subtle.exportKey('spki', pair.publicKey),
       window.crypto.subtle.exportKey('pkcs8', pair.privateKey)
     ])
-    return { public: this._hex(new Uint8Array(publicKey)), private: this._hex(new Uint8Array(privateKey)) }
+    return { public: this._base64(new Uint8Array(publicKey)), private: this._base64(new Uint8Array(privateKey)) }
   }
 
   /**
    * Encrypt text using RSA public key.
-   * @param {string} key hex
+   * @param {string} key base64
    * @param {string} text utf8
-   * @returns {Promise<string>} hex
+   * @returns {Promise<string>} base64
    */
   async publicEncrypt (key, text) {
     const algo = { name: 'RSA-OAEP', hash: 'SHA-512' }
     const key1 = await window.crypto.subtle.importKey('spki', this._arr(key), algo, false, ['encrypt'])
     const encrypted = await window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key1, this._enc.encode(text))
-    return this._hex(new Uint8Array(encrypted))
+    return this._base64(new Uint8Array(encrypted))
   }
 
   /**
    * Decrypt text using RSA private key.
-   * @param {string} key hex
-   * @param {string} text hex
+   * @param {string} key base64
+   * @param {string} text base64
    * @returns {Promise<string>} utf8
    */
   async privateDecrypt (key, text) {
@@ -96,29 +99,29 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
   }
 
   /**
-   * Convert a hex string to array.
-   * @param {string} hex
+   * Convert a base64 string to array.
+   * @param {string} base64
    * @returns {Uint8Array}
    */
-  _arr (hex) {
-    const array = new Uint8Array(hex.length / 2)
-    for (let i = 0; i < hex.length; i += 2) {
-      array[i / 2] = parseInt(hex.substring(i, i + 2), 16)
+  _arr (base64) {
+    const binary = window.atob(base64)
+    const array = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; ++i) {
+      array[i] = binary.charCodeAt(i)
     }
     return array
-  };
+  }
 
   /**
-   * Convert an array to hex string.
+   * Convert an array to base64 string.
    * @param {Uint8Array} array
    * @returns {string}
    */
-  _hex (array) {
-    let hex = ''
+  _base64 (array) {
+    const binary = new Array(array.length)
     for (let i = 0; i < array.length; ++i) {
-      const value = array[i].toString(16)
-      hex += value.length === 1 ? '0' + value : value
+      binary[i] = String.fromCharCode(array[i])
     }
-    return hex
-  };
+    return window.btoa(binary.join(''))
+  }
 }
