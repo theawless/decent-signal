@@ -310,7 +310,7 @@ export class DecentSignalParty extends DecentSignalChat {
       message.text = await this._crypto.secretDecrypt(this._options.pass, encrypt)
       this.events.emit('message-received', from, message)
     } catch (e) {
-      console.log(`Either password for user ${from.id} is wrong, or our password is wrong.`)
+      console.log(`Either user ${from.id} is in the wrong party, or we are.`)
     }
   }
 }
@@ -482,7 +482,7 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
   constructor (crypto) {
     super()
     this._crypto = crypto
-    this._keyss = new Map() // user id to keys map
+    this._publicKeys = new Map() // user id to public key map
   }
 
   /**
@@ -490,9 +490,8 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    * @returns {DecentSignalContact}
    */
   async getContact () {
-    this._keys = await this._crypto.generateKeys()
-    const info = JSON.stringify(this._keys)
-    return new DecentSignalContact(info)
+    this._myKeys = await this._crypto.generateKeys()
+    return new DecentSignalContact(this._myKeys.public)
   }
 
   /**
@@ -501,8 +500,7 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    * @param {DecentSignalContact} contact
    */
   async setContact (of, contact) {
-    const keys = JSON.parse(contact.info)
-    this._keyss.set(of.id, keys)
+    this._publicKeys.set(of.id, contact.info)
   }
 
   /**
@@ -510,7 +508,7 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    * @param {DecentSignalUser} of
    */
   removeContact (of) {
-    this._keyss.delete(of.id)
+    this._publicKeys.delete(of.id)
   }
 
   /**
@@ -520,10 +518,10 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    * @returns {Promise<string>}
    */
   async encryptText (to, text) {
-    const keys = this._keyss.get(to.id)
+    const key = this._publicKeys.get(to.id)
     const secret = await this._crypto.generateSecret(32)
     const encrypt = await Promise.all([
-      this._crypto.publicEncrypt(keys.public, secret),
+      this._crypto.publicEncrypt(key, secret),
       this._crypto.secretEncrypt(secret, text)
     ])
     return JSON.stringify({ secret: encrypt[0], text: encrypt[1] })
@@ -537,7 +535,7 @@ export class DecentSignalPublicKeyCommunicator extends DecentSignalCommunicator 
    */
   async decryptText (from, text) {
     const encrypt = JSON.parse(text)
-    const secret = await this._crypto.privateDecrypt(this._keys.private, encrypt.secret)
+    const secret = await this._crypto.privateDecrypt(this._myKeys.private, encrypt.secret)
     return this._crypto.secretDecrypt(secret, encrypt.text)
   }
 }
