@@ -55,7 +55,7 @@ class Demo {
   }
 
   /**
-   * Handle user updates by starting webrtc connections.
+   * Handle user updates by maintaining webrtc connections.
    * @param {DecentSignalUser} user
    * @param {boolean} active
    */
@@ -67,7 +67,7 @@ class Demo {
       this._updateWebrtcPeers()
     }
     if (!active) {
-      console.info(`User ${user.id} has left matrix chat.`)
+      console.info(`User ${user.id} has left.`)
       this._updateServerPeers()
       return
     }
@@ -85,19 +85,13 @@ class Demo {
     const initiator = this._user.id > user.id
     peer.addEventListener('connectionstatechange', () => {
       this._updateWebrtcPeers()
-      if (initiator && peer.connectionState === 'failed') {
-        console.log(`Re-initiating connection with user ${user.id}`)
-        peer.restartIce()
-      }
     })
     if (initiator) {
-      console.log(`Initiating connection with user ${user.id}`)
+      console.log(`Initiating connection with user ${user.id}.`)
       peer.addEventListener('negotiationneeded', async () => {
         const offer = await peer.createOffer()
         await peer.setLocalDescription(offer)
         const message = new DecentSignalMessage(JSON.stringify({ offer: peer.localDescription }))
-        // wait for others to be ready for receiving our signals
-        await new Promise(resolve => setTimeout(resolve, 4000))
         await this._signal.sendMessage(user, message)
       })
       const feed = peer.createDataChannel('feed')
@@ -106,7 +100,7 @@ class Demo {
         this._handleWebrtcMessage(user, event.data)
       })
     } else {
-      console.log(`Receiving connection from user ${user.id}`)
+      console.log(`Receiving connection from user ${user.id}.`)
       peer.addEventListener('datachannel', (event) => {
         this._feeds.set(user.id, event.channel)
         event.channel.addEventListener('message', (event) => {
@@ -122,8 +116,8 @@ class Demo {
   _setupUI () {
     const serverInput = document.getElementById('server-input')
     serverInput.addEventListener('keyup', (event) => {
-      event.preventDefault()
       if (event.key === 'Enter') {
+        event.preventDefault()
         const text = serverInput.value.trim()
         serverInput.value = ''
         if (text !== '') {
@@ -135,8 +129,8 @@ class Demo {
     })
     const webRtcInput = document.getElementById('webrtc-input')
     webRtcInput.addEventListener('keyup', (event) => {
-      event.preventDefault()
       if (event.key === 'Enter') {
+        event.preventDefault()
         const text = webRtcInput.value.trim()
         webRtcInput.value = ''
         if (text !== '') {

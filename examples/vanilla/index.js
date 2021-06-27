@@ -3,15 +3,15 @@
  */
 class Demo {
   /**
-   * @param {MatrixClient} client
    * @param {SimpleDrawingBoard} pad
-   * @param {{room: string}} options
+   * @param {MatrixClient} client
+   * @param {string} room
    */
-  constructor (client, pad, { room }) {
+  constructor (pad, client, { room }) {
     this._pad = pad
     this._user = new window.decentSignal.DecentSignalUser(client.getUserId())
-    this._chat = new window.decentSignal.DecentSignalMatrixChat(client, { room })
-    const channel = new window.decentSignal.DecentSignalChannel(this._chat)
+    const chat = new window.decentSignal.DecentSignalMatrixChat(client, { room })
+    const channel = new window.decentSignal.DecentSignalChannel(chat)
     const crypto = new window.decentSignal.DecentSignalSubtleCrypto()
     const communicator = new window.decentSignal.DecentSignalPublicKeyCommunicator(crypto)
     this._signal = new window.decentSignal.DecentSignal(communicator, channel)
@@ -151,6 +151,7 @@ function setStatus (text) {
 
 /**
  * Generate a random color in RGBA format.
+ * @returns {string} rgba
  */
 function randomColor () {
   const num = Math.round(0xffffff * Math.random())
@@ -161,14 +162,17 @@ function randomColor () {
  * Async main function.
  */
 async function main () {
+  canvas.height = canvas.clientHeight
+  canvas.width = canvas.clientWidth
   login.disabled = false
   logout.disabled = true
   start.disabled = true
   stop.disabled = true
   const loginId = document.getElementById('loginId')
   const loginPass = document.getElementById('loginPass')
-  const pad = window.SimpleDrawingBoard.create(document.getElementById('sketchpad'))
+  const pad = window.SimpleDrawingBoard.create(canvas)
   pad.setLineColor(randomColor())
+  pad.setLineSize(3)
   pad.observer.on('drawBegin', (_) => {
     loginId.blur()
     loginPass.blur()
@@ -186,7 +190,7 @@ async function main () {
   const userId = window.localStorage.getItem('decent-signal-matrix-chat-user-id')
   const accessToken = window.localStorage.getItem('decent-signal-matrix-chat-access-token')
   const client = window.matrixcs.createClient({ baseUrl: 'https://matrix.org', userId, accessToken })
-  const demo = new Demo(client, pad, { room })
+  const demo = new Demo(pad, client, { room })
   if (userId && accessToken) {
     setStatus(`Logged in for ${userId}...`)
     login.disabled = true
@@ -227,6 +231,7 @@ async function main () {
   window.addEventListener('beforeunload', clean)
 }
 
+const canvas = document.getElementById('sketchpad')
 const login = document.getElementById('login')
 const logout = document.getElementById('logout')
 const start = document.getElementById('start')
