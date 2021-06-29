@@ -13,9 +13,7 @@
   },
   "dependencies": {
     "websocket": "latest",
-    "decent-signal": "file:../..",
-    "decent-signal-adapter-node-crypto": "file:../../adapters/node-crypto",
-    "decent-signal-adapter-webtorrent-tracker": "file:../../adapters/webtorrent-tracker"
+    "decent-signal": "file:../.."
   },
   "devDependencies": {
     "bittorrent-tracker": "latest"

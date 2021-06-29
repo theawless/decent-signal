@@ -1,4 +1,5 @@
-import { DecentSignalChat, DecentSignalMessage, DecentSignalUser } from 'decent-signal'
+import { DecentSignalChat } from '../interfaces/chat'
+import { DecentSignalMessage, DecentSignalUser } from '../interfaces/models'
 
 /**
  * Peer id and info hash are both unique, but trackers do not enforce that.

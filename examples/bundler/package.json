@@ -4,9 +4,7 @@
     "prepare": "rollup -c"
   },
   "dependencies": {
-    "decent-signal": "file:../..",
-    "decent-signal-adapter-local-server": "file:../../adapters/local-server",
-    "decent-signal-adapter-subtle-crypto": "file:../../adapters/subtle-crypto"
+    "decent-signal": "file:../.."
   },
   "devDependencies": {
     "rollup": "latest",

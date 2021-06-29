@@ -1,17 +1,15 @@
 const {
-  DecentSignalPublicKeyCommunicator,
   DecentSignal,
   DecentSignalParty,
   DecentSignalChannel,
-  DecentSignalUser,
-  DecentSignalMessage
-} = require('decent-signal')
-const {
+  DecentSignalMessage,
+  DecentSignalNodeCrypto,
   DecentSignalWebtorrentTracker,
-  DecentSignalWebtorrentTrackerUser
-} = require('decent-signal-adapter-webtorrent-tracker')
-const { DecentSignalNodeCrypto } = require('decent-signal-adapter-node-crypto')
+  DecentSignalWebtorrentTrackerUser,
+  DecentSignalPublicKeyCommunicator
+} = require('decent-signal')
 const WebSocket = require('websocket').w3cwebsocket
+const nodeCrypto = require('crypto')
 
 /**
  * Example for node + crypto + public key communication + webtorrent tracker as a channel + party system.
@@ -28,7 +26,7 @@ class Demo {
    */
   constructor (socket, { peerId, infoHash, party, pass }) {
     this._user = new DecentSignalWebtorrentTrackerUser(peerId, infoHash, 10)
-    const crypto = new DecentSignalNodeCrypto()
+    const crypto = new DecentSignalNodeCrypto(nodeCrypto)
     const communicator = new DecentSignalPublicKeyCommunicator(crypto)
     const tracker = new DecentSignalWebtorrentTracker(socket, this._user)
     const channel = new DecentSignalChannel(new DecentSignalParty(tracker, crypto, { party, pass }))
@@ -113,7 +111,7 @@ async function main () {
   // Testing with local instance of bittorrent-tracker.
   const socket = new WebSocket('ws://localhost:8000')
   socket.onclose = (evt) => console.error(`Socket closed due to ${evt.code}: ${evt.reason}`)
-  await new Promise(resolve => socket.onopen = (_) => resolve())
+  await new Promise(resolve => { socket.onopen = (_) => resolve() })
   const demo = new Demo(socket, {
     peerId: 'peerIdPrefix-' + process.argv[2],
     infoHash: 'hashPrefix-' + process.argv[3],

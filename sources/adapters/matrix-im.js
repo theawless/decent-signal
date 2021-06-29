@@ -1,4 +1,5 @@
-import { DecentSignalChat, DecentSignalMessage, DecentSignalUser } from 'decent-signal'
+import { DecentSignalChat } from '../interfaces/chat'
+import { DecentSignalMessage, DecentSignalUser } from '../interfaces/models'
 
 /**
  * Abstraction over matrix instant messaging system.

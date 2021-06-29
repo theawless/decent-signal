@@ -1,10 +1,15 @@
-import { DecentSignal, DecentSignalMessage, DecentSignalPublicKeyCommunicator, DecentSignalUser } from 'decent-signal'
-import { DecentSignalLocalServer } from 'decent-signal-adapter-local-server'
-import { DecentSignalSubtleCrypto } from 'decent-signal-adapter-subtle-crypto'
+import {
+  DecentSignal,
+  DecentSignalMessage,
+  DecentSignalPublicKeyCommunicator,
+  DecentSignalRxDBServer,
+  DecentSignalSubtleCrypto,
+  DecentSignalUser
+} from 'decent-signal'
 
 /**
- * Example for bundler + subtle crypto + public key communication + local server + manual webrtc signalling.
- * TODO: Can use perfect negotiation here.
+ * Example for bundler + subtle crypto + public key communication + RxDB server + manual webrtc signalling.
+ * TODO: Can use perfect negotiation here?
  */
 class Demo {
   /**
@@ -13,8 +18,8 @@ class Demo {
    */
   constructor (db, { id }) {
     this._user = new DecentSignalUser(id)
-    this._server = new DecentSignalLocalServer(db, this._user)
-    const crypto = new DecentSignalSubtleCrypto()
+    this._server = new DecentSignalRxDBServer(db, this._user)
+    const crypto = new DecentSignalSubtleCrypto(window.crypto)
     const communicator = new DecentSignalPublicKeyCommunicator(crypto)
     this._signal = new DecentSignal(communicator, this._server)
     this._peers = new Map() // user id to peer map

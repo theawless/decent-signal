@@ -1,6 +1,6 @@
 # decent-signal-example-bundler
 
-Example for bundler + subtle crypto + public key communication + local server + manual webrtc signalling.
+Example for bundler + web crypto + public key + RxDB server + webrtc.
 
 ## Demo
 

@@ -1,14 +1,15 @@
-import { DecentSignalCryptography } from 'decent-signal'
+import { DecentSignalCryptography } from '../interfaces/crypto'
 
 /**
- * Cryptography functions that use browser's built in crypto.
+ * Cryptography functions that use web crypto.
  */
 export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
   /**
-   * Objects for common use.
+   * {crypto} web crypto module
    */
-  constructor () {
+  constructor (crypto) {
     super()
+    this._crypto = crypto
     this._enc = new TextEncoder()
     this._dec = new TextDecoder()
   }
@@ -19,7 +20,7 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
    * @returns {Promise<string>} base64 encoded
    */
   async generateSecret (size) {
-    const random = window.crypto.getRandomValues(new Uint8Array(size))
+    const random = this._crypto.getRandomValues(new Uint8Array(size))
     return this._base64(random)
   }
 
@@ -30,12 +31,12 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
    * @returns {Promise<string>} {salt, iv, enc} base64 encoded
    */
   async secretEncrypt (secret, text) {
-    const key1 = await window.crypto.subtle.importKey('raw', this._enc.encode(secret), 'PBKDF2', false, ['deriveKey'])
-    const salt = window.crypto.getRandomValues(new Uint8Array(32))
+    const key1 = await this._crypto.subtle.importKey('raw', this._enc.encode(secret), 'PBKDF2', false, ['deriveKey'])
+    const salt = this._crypto.getRandomValues(new Uint8Array(32))
     const algo = { name: 'PBKDF2', hash: 'SHA-512', salt: salt, iterations: 100000 }
-    const key2 = await window.crypto.subtle.deriveKey(algo, key1, { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
-    const iv = window.crypto.getRandomValues(new Uint8Array(16))
-    const encrypt = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key2, this._enc.encode(text))
+    const key2 = await this._crypto.subtle.deriveKey(algo, key1, { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
+    const iv = this._crypto.getRandomValues(new Uint8Array(16))
+    const encrypt = await this._crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key2, this._enc.encode(text))
     return JSON.stringify({
       salt: this._base64(salt),
       iv: this._base64(iv),
@@ -51,10 +52,10 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
    */
   async secretDecrypt (secret, text) {
     const { salt, iv, enc } = JSON.parse(text)
-    const key1 = await window.crypto.subtle.importKey('raw', this._enc.encode(secret), 'PBKDF2', false, ['deriveKey'])
+    const key1 = await this._crypto.subtle.importKey('raw', this._enc.encode(secret), 'PBKDF2', false, ['deriveKey'])
     const algo = { name: 'PBKDF2', hash: 'SHA-512', salt: this._arr(salt), iterations: 100000 }
-    const key2 = await window.crypto.subtle.deriveKey(algo, key1, { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
-    const decrypt = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: this._arr(iv) }, key2, this._arr(enc))
+    const key2 = await this._crypto.subtle.deriveKey(algo, key1, { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
+    const decrypt = await this._crypto.subtle.decrypt({ name: 'AES-GCM', iv: this._arr(iv) }, key2, this._arr(enc))
     return this._dec.decode(decrypt)
   }
 
@@ -64,10 +65,10 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
    */
   async generateKeys () {
     const algo = { name: 'RSA-OAEP', modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-512' }
-    const pair = await window.crypto.subtle.generateKey(algo, true, ['encrypt', 'decrypt'])
+    const pair = await this._crypto.subtle.generateKey(algo, true, ['encrypt', 'decrypt'])
     const [publicKey, privateKey] = await Promise.all([
-      window.crypto.subtle.exportKey('spki', pair.publicKey),
-      window.crypto.subtle.exportKey('pkcs8', pair.privateKey)
+      this._crypto.subtle.exportKey('spki', pair.publicKey),
+      this._crypto.subtle.exportKey('pkcs8', pair.privateKey)
     ])
     return { public: this._base64(new Uint8Array(publicKey)), private: this._base64(new Uint8Array(privateKey)) }
   }
@@ -80,8 +81,8 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
    */
   async publicEncrypt (key, text) {
     const algo = { name: 'RSA-OAEP', hash: 'SHA-512' }
-    const key1 = await window.crypto.subtle.importKey('spki', this._arr(key), algo, false, ['encrypt'])
-    const encrypted = await window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key1, this._enc.encode(text))
+    const key1 = await this._crypto.subtle.importKey('spki', this._arr(key), algo, false, ['encrypt'])
+    const encrypted = await this._crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key1, this._enc.encode(text))
     return this._base64(new Uint8Array(encrypted))
   }
 
@@ -93,8 +94,8 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
    */
   async privateDecrypt (key, text) {
     const algo = { name: 'RSA-OAEP', hash: 'SHA-512' }
-    const key1 = await window.crypto.subtle.importKey('pkcs8', this._arr(key), algo, false, ['decrypt'])
-    const decrypted = await window.crypto.subtle.decrypt({ name: 'RSA-OAEP' }, key1, this._arr(text))
+    const key1 = await this._crypto.subtle.importKey('pkcs8', this._arr(key), algo, false, ['decrypt'])
+    const decrypted = await this._crypto.subtle.decrypt({ name: 'RSA-OAEP' }, key1, this._arr(text))
     return this._dec.decode(decrypted)
   }
 
@@ -104,7 +105,7 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
    * @returns {Uint8Array}
    */
   _arr (base64) {
-    const binary = window.atob(base64)
+    const binary = atob(base64)
     const array = new Uint8Array(binary.length)
     for (let i = 0; i < binary.length; ++i) {
       array[i] = binary.charCodeAt(i)
@@ -122,6 +123,6 @@ export class DecentSignalSubtleCrypto extends DecentSignalCryptography {
     for (let i = 0; i < array.length; ++i) {
       binary[i] = String.fromCharCode(array[i])
     }
-    return window.btoa(binary.join(''))
+    return btoa(binary.join(''))
   }
 }

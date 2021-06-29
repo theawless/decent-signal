@@ -6,7 +6,8 @@
   "module": "dist/decent-signal.module.js",
   "browser": "dist/decent-signal.browser.js",
   "devDependencies": {
-    "rollup": "latest"
+    "rollup": "latest",
+    "@rollup/plugin-multi-entry": "latest"
   },
   "scripts": {
     "prepare": "rollup -c"
@@ -14,7 +15,7 @@
   "files": [
     "dist"
   ],
-  "version": "0.1.1",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/theawless/decent-signal.git"

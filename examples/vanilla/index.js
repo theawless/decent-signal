@@ -12,7 +12,7 @@ class Demo {
     this._user = new window.decentSignal.DecentSignalUser(client.getUserId())
     const chat = new window.decentSignal.DecentSignalMatrixChat(client, { room })
     const channel = new window.decentSignal.DecentSignalChannel(chat)
-    const crypto = new window.decentSignal.DecentSignalSubtleCrypto()
+    const crypto = new window.decentSignal.DecentSignalSubtleCrypto(window.crypto)
     const communicator = new window.decentSignal.DecentSignalPublicKeyCommunicator(crypto)
     this._signal = new window.decentSignal.DecentSignal(communicator, channel)
     this._peers = new Map() // map of user id to peer

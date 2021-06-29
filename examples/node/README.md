@@ -1,6 +1,6 @@
 # decent-signal-example-node
 
-Example for node + crypto + public key communication + webtorrent-tracker as a channel + party system.
+Example for node + node crypto + public key + webtorrent tracker + party.
 
 ## Demo
 

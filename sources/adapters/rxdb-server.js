@@ -1,10 +1,11 @@
-import { DecentSignalContact, DecentSignalEvents, DecentSignalServer, DecentSignalUser } from 'decent-signal'
-import { DecentSignalLocalChat } from 'decent-signal-local-chat'
+import { DecentSignalChat } from '../interfaces/chat'
+import { DecentSignalContact, DecentSignalMessage, DecentSignalUser } from '../interfaces/models'
+import { DecentSignalServer } from '../interfaces/server'
 
 /**
- * Hacky implementation for a local server using RxDB.
+ * Hacky implementation for a chat using RxDB.
  */
-export class DecentSignalLocalServer extends DecentSignalServer {
+export class DecentSignalRxDBChat extends DecentSignalChat {
   /**
    * The db should be fully constructed.
    * @param {RxDatabaseBase} db
@@ -12,10 +13,85 @@ export class DecentSignalLocalServer extends DecentSignalServer {
    */
   constructor (db, user) {
     super()
-    this.events = new DecentSignalEvents()
     this._db = db
     this._user = user
-    this._chat = new DecentSignalLocalChat(db, user)
+    this._onCollectionChanged = (change) => this._handleMessage(change.documentData)
+  }
+
+  /**
+   * @returns {object}
+   */
+  static get SCHEMA () {
+    return {
+      version: 0,
+      properties: {
+        from_id: { type: 'string' },
+        to_id: { type: 'string' },
+        text: { type: 'string' }
+      }
+    }
+  };
+
+  /**
+   * Start listening to all message insertion events.
+   */
+  async joinChat () {
+    await this._db.collection({ name: 'messages', schema: DecentSignalRxDBChat.SCHEMA })
+    this._db.messages.insert$.subscribe(this._onCollectionChanged)
+  }
+
+  /**
+   * Stop listening to updates in the collection.
+   */
+  async leaveChat () {
+    await this._db.messages.destroy()
+  }
+
+  /**
+   * Send message by adding it to the collection.
+   * @param {DecentSignalUser | undefined} to
+   * @param {DecentSignalMessage} message
+   */
+  async sendMessage (to, message) {
+    const doc = {
+      from_id: this._user.id,
+      to_id: to ? to.id : '',
+      text: message.text
+    }
+    await this._db.messages.insert(doc)
+  }
+
+  /**
+   * Handle the incoming message.
+   * @param {object} entry
+   */
+  _handleMessage (entry) {
+    const from = new DecentSignalUser(entry.from_id)
+    const message = new DecentSignalMessage(entry.text)
+    if (entry.from_id === this._user.id) {
+      return
+    }
+    if (entry.to_id !== '' && entry.to_id !== this._user.id) {
+      return
+    }
+    this.events.emit('message-received', from, message)
+  }
+}
+
+/**
+ * Hacky implementation for a server using RxDB.
+ */
+export class DecentSignalRxDBServer extends DecentSignalServer {
+  /**
+   * The db should be fully constructed.
+   * @param {RxDatabaseBase} db
+   * @param {DecentSignalUser} user
+   */
+  constructor (db, user) {
+    super()
+    this._db = db
+    this._user = user
+    this._chat = new DecentSignalRxDBChat(db, user)
     this._onEntryInserted = (change) => this._handleUser(change.documentData, 'seen')
     this._onEntryRemoved = (change) => this._handleUser(change.documentData, 'left')
     this._onEntryUpdated = (change) => this._handleUser(change.documentData, 'reset')
@@ -70,7 +146,7 @@ export class DecentSignalLocalServer extends DecentSignalServer {
    * Start listening to all user update events.
    */
   async joinServer (contact) {
-    await this._db.collection({ name: 'users', schema: DecentSignalLocalServer._SCHEMA })
+    await this._db.collection({ name: 'users', schema: DecentSignalRxDBServer._SCHEMA })
     this._db.users.insert$.subscribe(this._onEntryInserted)
     this._db.users.remove$.subscribe(this._onEntryRemoved)
     this._db.users.update$.subscribe(this._onEntryUpdated)
@@ -91,7 +167,7 @@ export class DecentSignalLocalServer extends DecentSignalServer {
   }
 
   /**
-   * Send message by using local chat.
+   * Send message by using RxDB chat.
    * @param {DecentSignalUser | undefined} to
    * @param {DecentSignalMessage} message
    */
