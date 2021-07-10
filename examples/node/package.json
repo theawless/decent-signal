@@ -1,15 +1,15 @@
 {
   "scripts": {
     "server": "bittorrent-tracker --ws",
-    "node-0000": "node --preserve-symlinks index peerId0 infoHash0 party0 pass0",
-    "node-1000": "node --preserve-symlinks index peerId1 infoHash0 party0 pass0",
-    "node-2000": "node --preserve-symlinks index peerId2 infoHash0 party0 pass0",
-    "node-3100": "node --preserve-symlinks index peerId3 infoHash1 party0 pass0",
-    "node-4100": "node --preserve-symlinks index peerId4 infoHash1 party0 pass0",
-    "node-5010": "node --preserve-symlinks index peerId5 infoHash0 party1 pass0",
-    "node-6010": "node --preserve-symlinks index peerId6 infoHash0 party1 pass0",
-    "node-7001": "node --preserve-symlinks index peerId7 infoHash0 party0 pass1",
-    "node-8001": "node --preserve-symlinks index peerId8 infoHash0 party0 pass1"
+    "node-0000": "node index peerId0 infoHash0 party0 pass0",
+    "node-1000": "node index peerId1 infoHash0 party0 pass0",
+    "node-2000": "node index peerId2 infoHash0 party0 pass0",
+    "node-3100": "node index peerId3 infoHash1 party0 pass0",
+    "node-4100": "node index peerId4 infoHash1 party0 pass0",
+    "node-5010": "node index peerId5 infoHash0 party1 pass0",
+    "node-6010": "node index peerId6 infoHash0 party1 pass0",
+    "node-7001": "node index peerId7 infoHash0 party0 pass1",
+    "node-8001": "node index peerId8 infoHash0 party0 pass1"
   },
   "dependencies": {
     "websocket": "latest",

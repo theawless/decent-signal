@@ -1,5 +1,5 @@
 /**
- * Example for vanilla + subtle crypto + public key communication + matrix im + simple peer.
+ * Example for vanilla + web crypto + public key + matrix im + simple peer.
  */
 class Demo {
   /**
@@ -9,15 +9,16 @@ class Demo {
    */
   constructor (pad, client, { room }) {
     this._pad = pad
-    this._user = new window.decentSignal.DecentSignalUser(client.getUserId())
-    const chat = new window.decentSignal.DecentSignalMatrixChat(client, { room })
-    const channel = new window.decentSignal.DecentSignalChannel(chat)
-    const crypto = new window.decentSignal.DecentSignalSubtleCrypto(window.crypto)
-    const communicator = new window.decentSignal.DecentSignalPublicKeyCommunicator(crypto)
-    this._signal = new window.decentSignal.DecentSignal(communicator, channel)
+    this._user = new window.decentSignal.DSUser(client.getUserId())
+    const channel = new window.decentSignal.DSMatrixIM(client, { room })
+    const service = new window.decentSignal.DSChannelAsService(channel)
+    const crypto = new window.decentSignal.DSWebCrypto(window.crypto)
+    const store = new window.decentSignal.DSInMemoryKeystore()
+    const communicator = new window.decentSignal.DSSharedSecretCommunicator(crypto, store)
+    this._comm = new window.decentSignal.DSSecureCommunication(service, communicator)
     this._peers = new Map() // map of user id to peer
-    this._onUserSeen = (user) => this._handleUser(user, true).then()
-    this._onUserLeft = (user) => this._handleUser(user, false).then()
+    this._onUserSeen = (user, connect) => this._handleUser(user, connect).then()
+    this._onUserLeft = (user) => this._handleUser(user).then()
     this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
     this._setupUI()
   }
@@ -26,13 +27,10 @@ class Demo {
    * Start the demo.
    */
   async start () {
-    await this._signal.startSignalling()
-    this._signal.events.connect('user-seen', this._onUserSeen)
-    this._signal.events.connect('user-left', this._onUserLeft)
-    this._signal.events.connect('message-received', this._onMessageReceived)
-    for (const user of await this._signal.getUsers()) {
-      await this._handleUser(user, true)
-    }
+    await this._comm.start()
+    this._comm.events.connect('user-seen', this._onUserSeen)
+    this._comm.events.connect('user-left', this._onUserLeft)
+    this._comm.events.connect('message-received', this._onMessageReceived)
   }
 
   /**
@@ -42,62 +40,65 @@ class Demo {
     for (const peer of this._peers.values()) {
       peer.destroy()
     }
-    this._signal.events.disconnect('message-received', this._onMessageReceived)
-    this._signal.events.disconnect('user-seen', this._onUserSeen)
-    this._signal.events.disconnect('user-left', this._onUserLeft)
-    await this._signal.stopSignalling()
+    this._peers.clear()
+    this._comm.events.disconnect('message-received', this._onMessageReceived)
+    this._comm.events.disconnect('user-seen', this._onUserSeen)
+    this._comm.events.disconnect('user-left', this._onUserLeft)
+    await this._comm.stop()
   }
 
   /**
    * Handle user updates by starting webrtc connections.
-   * @param {DecentSignalUser} user
-   * @param {boolean} active
+   * @param {DSUser} user
+   * @param {() => Promise<void>} [connect]
    */
-  async _handleUser (user, active) {
+  async _handleUser (user, connect) {
     if (this._peers.has(user.id)) {
       this._peers.get(user.id).destroy()
       this._peers.delete(user.id)
     }
-    if (!active) {
-      console.info(`User ${user.id} has left matrix chat.`)
+    if (!connect) {
+      console.info(`User ${user.id} has left matrix.`)
       return
     }
-    console.info(`User ${user.id} seen on matrix chat.`)
-    await this._signal.connectUser(user)
-    const peer = new window.SimplePeer({ initiator: this._user.id > user.id })
+    console.info(`User ${user.id} seen on matrix.`)
+    await connect()
+    const peer = new window.SimplePeer({ initiator: true, trickle: false })
     peer.on('signal', (data) => {
-      console.info(`Sending signalling data to ${user.id}.`)
-      const message = new window.decentSignal.DecentSignalMessage(JSON.stringify(data))
-      this._signal.sendMessage(user, message).then()
+      console.info(`Sending signalling data to user ${user.id}.`)
+      const message = new window.decentSignal.DSMessage(JSON.stringify(data))
+      this._comm.send(user, message).then()
     })
     peer.on('data', (data) => {
       this._pad.fillImageByDataURL(JSON.parse(data)).then()
     })
     peer.on('connect', () => {
-      console.info(`Webrtc connection established with ${user.id}.`)
+      console.info(`Webrtc connection established with user ${user.id}.`)
+      const data = JSON.stringify(this._pad.toDataURL())
+      peer.send(data)
     })
     peer.on('close', () => {
-      console.info(`Webrtc connection closed with ${user.id}.`)
+      console.info(`Webrtc connection closed with user ${user.id}.`)
     })
     peer.on('error', () => {
-      console.info(`Webrtc connection errored with ${user.id}.`)
+      console.info(`Webrtc connection errored with user ${user.id}.`)
     })
     this._peers.set(user.id, peer)
   }
 
   /**
    * Handle signalling data when it arrives from the other user.
-   * @param {DecentSignalUser} from
-   * @param {DecentSignalMessage} message
+   * @param {DSUser} from
+   * @param {DSMessage} message
    */
   async _handleMessage (from, message) {
-    console.info(`Received signalling data from ${from.id}.`)
+    console.info(`Received signalling data from user ${from.id}.`)
     const peer = this._peers.get(from.id)
-    peer.signal(JSON.parse(message.text))
+    peer.signal(JSON.parse(message.data))
   }
 
   /**
-   * Setup the ui functionality.
+   * Set up the ui functionality.
    */
   _setupUI () {
     start.addEventListener('click', () => {
@@ -180,17 +181,19 @@ async function main () {
   logout.addEventListener('click', () => {
     logout.disabled = true
     setStatus('Logging out...')
-    window.localStorage.removeItem('decent-signal-matrix-chat-user-id')
-    window.localStorage.removeItem('decent-signal-matrix-chat-access-token')
+    window.localStorage.removeItem(USER_KEY)
+    window.localStorage.removeItem(TOKEN_KEY)
     setStatus('Reloading page...')
     window.location.reload()
   })
   setStatus('Ready...')
-  const room = '!pWVvtzxmhMBKhfkrIy:matrix.org' // decent-signal-github-demo
-  const userId = window.localStorage.getItem('decent-signal-matrix-chat-user-id')
-  const accessToken = window.localStorage.getItem('decent-signal-matrix-chat-access-token')
-  const client = window.matrixcs.createClient({ baseUrl: 'https://matrix.org', userId, accessToken })
-  const demo = new Demo(pad, client, { room })
+  const userId = window.localStorage.getItem(USER_KEY)
+  const accessToken = window.localStorage.getItem(TOKEN_KEY)
+  const client = window.matrixcs.createClient({
+    baseUrl: 'https://matrix.org',
+    userId, accessToken
+  })
+  const demo = new Demo(pad, client, { room: ROOM })
   if (userId && accessToken) {
     setStatus(`Logged in for ${userId}...`)
     login.disabled = true
@@ -207,10 +210,10 @@ async function main () {
       client.login('m.login.password', {
         user: loginId.value,
         password: loginPass.value,
-        device_id: `dummy-device-${room}`
+        device_id: `dummy-device-${ROOM}`
       }).then(() => {
-        window.localStorage.setItem('decent-signal-matrix-chat-user-id', client.getUserId())
-        window.localStorage.setItem('decent-signal-matrix-chat-access-token', client.getAccessToken())
+        window.localStorage.setItem(USER_KEY, client.getUserId())
+        window.localStorage.setItem(TOKEN_KEY, client.getAccessToken())
         setStatus('Reloading page...')
         window.location.reload()
       }).catch(() => {
@@ -230,6 +233,10 @@ async function main () {
   }
   window.addEventListener('beforeunload', clean)
 }
+
+const ROOM = '!pWVvtzxmhMBKhfkrIy:matrix.org' // decent-signal-github-demo
+const USER_KEY = 'decent-signal-matrix-im-user-id'
+const TOKEN_KEY = 'decent-signal-matrix-im-access-token'
 
 const canvas = document.getElementById('sketchpad')
 const login = document.getElementById('login')

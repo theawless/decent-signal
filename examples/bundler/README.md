@@ -1,6 +1,6 @@
 # decent-signal-example-bundler
 
-Example for bundler + web crypto + public key + RxDB server + webrtc.
+Example for bundler + web crypto + public key + RxDB + webrtc.
 
 ## Demo
 

@@ -5,24 +5,24 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <meta content="yes" name="mobile-web-app-capable">
     <link href="data:," rel="icon">
-    <script src="https://unpkg.com/rxdb/dist/rxdb.browserify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/rxdb/dist/rxdb.browserify.min.js"></script>
     <title>Bundler example</title>
 </head>
 <body>
 <main>
     <div style="height: 100%; display: grid; grid-template-columns: auto auto;
                 grid-template-rows:max-content auto max-content auto max-content">
-        <label for="server-peers">Peers on server</label>
+        <label for="service-peers">Peers on service</label>
         <label for="webrtc-peers">Peers on webrtc</label>
-        <textarea cols="60" id="server-peers" readonly rows="5"></textarea>
+        <textarea cols="60" id="service-peers" readonly rows="5"></textarea>
         <textarea cols="60" id="webrtc-peers" readonly rows="5"></textarea>
-        <label for="server-messages">Messages on server</label>
+        <label for="service-messages">Messages on service</label>
         <label for="webrtc-messages">Messages on webrtc</label>
-        <textarea cols="60" id="server-messages" readonly rows="20"></textarea>
+        <textarea cols="60" id="service-messages" readonly rows="20"></textarea>
         <textarea cols="60" id="webrtc-messages" readonly rows="20"></textarea>
-        <label for="server-input">Send for server</label>
+        <label for="service-input">Send for service</label>
         <label for="webrtc-input">Send for webrtc</label>
-        <input id="server-input" placeholder="Message..."/>
+        <input id="service-input" placeholder="Message..."/>
         <input id="webrtc-input" placeholder="Message..."/>
     </div>
     <script src="dist/decent-signal-examples-bundler.module.js"></script>

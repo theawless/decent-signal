@@ -1,15 +1,15 @@
 import {
-  DecentSignal,
-  DecentSignalMessage,
-  DecentSignalPublicKeyCommunicator,
-  DecentSignalRxDBServer,
-  DecentSignalSubtleCrypto,
-  DecentSignalUser
+  DSInMemoryKeystore,
+  DSMessage,
+  DSPublicKeyCommunicator,
+  DSSecureCommunication,
+  DSSyncedRxDBService,
+  DSUser,
+  DSWebCrypto
 } from 'decent-signal'
 
 /**
- * Example for bundler + subtle crypto + public key communication + RxDB server + manual webrtc signalling.
- * TODO: Can use perfect negotiation here?
+ * Example for bundler + web crypto + public key + RxDB + webrtc.
  */
 class Demo {
   /**
@@ -17,16 +17,17 @@ class Demo {
    * @param {string} id
    */
   constructor (db, { id }) {
-    this._user = new DecentSignalUser(id)
-    this._server = new DecentSignalRxDBServer(db, this._user)
-    const crypto = new DecentSignalSubtleCrypto(window.crypto)
-    const communicator = new DecentSignalPublicKeyCommunicator(crypto)
-    this._signal = new DecentSignal(communicator, this._server)
+    this._user = new DSUser(id)
+    this._service = new DSSyncedRxDBService(db, this._user)
+    const crypto = new DSWebCrypto(window.crypto)
+    const store = new DSInMemoryKeystore()
+    const communicator = new DSPublicKeyCommunicator(crypto, store)
+    this._comm = new DSSecureCommunication(this._service, communicator)
     this._peers = new Map() // user id to peer map
     this._feeds = new Map() // user id to feed map
-    this._onUserSeen = (user) => this._handleUser(user, true).then()
-    this._onUserLeft = (user) => this._handleUser(user, false).then()
-    this._onServerMessageReceived = (from, message) => this._handleServerMessage(from, message)
+    this._onUserSeen = (user, connect) => this._handleUserSeen(user, connect).then()
+    this._onUserLeft = (user) => this._handleUserLeft(user).then()
+    this._onServiceMessageReceived = (from, message) => this._handleServiceMessage(from, message)
     this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
   }
 
@@ -34,15 +35,15 @@ class Demo {
    * Start the demo.
    */
   async start () {
-    await this._signal.startSignalling()
-    this._signal.events.connect('user-seen', this._onUserSeen)
-    this._signal.events.connect('user-left', this._onUserLeft)
-    this._signal.events.connect('message-received', this._onMessageReceived)
-    this._server.events.connect('message-received', this._onServerMessageReceived)
-    for (const user of await this._signal.getUsers()) {
-      await this._handleUser(user, true)
-    }
+    await this._comm.start()
+    this._comm.events.connect('user-seen', this._onUserSeen)
+    this._comm.events.connect('user-left', this._onUserLeft)
+    this._comm.events.connect('message-received', this._onMessageReceived)
+    this._service.events.connect('message-received', this._onServiceMessageReceived)
     this._setupUI()
+    for (const { user, connect } of await this._comm.everyone()) {
+      await this._handleUserFound(user, connect)
+    }
   }
 
   /**
@@ -52,83 +53,125 @@ class Demo {
     for (const peer of this._peers.values()) {
       peer.close()
     }
-    this._server.events.disconnect('message-received', this._onServerMessageReceived)
-    this._signal.events.disconnect('message-received', this._onMessageReceived)
-    this._signal.events.disconnect('user-seen', this._onUserSeen)
-    this._signal.events.disconnect('user-left', this._onUserLeft)
-    await this._signal.stopSignalling()
+    for (const feed of this._feeds.values()) {
+      feed.close()
+    }
+    this._peers.clear()
+    this._feeds.clear()
+    this._service.events.disconnect('message-received', this._onServiceMessageReceived)
+    this._comm.events.disconnect('message-received', this._onMessageReceived)
+    this._comm.events.disconnect('user-seen', this._onUserSeen)
+    this._comm.events.disconnect('user-left', this._onUserLeft)
+    await this._comm.stop()
   }
 
   /**
-   * Handle user updates by maintaining webrtc connections.
-   * @param {DecentSignalUser} user
-   * @param {boolean} active
+   * Create a webrtc peer for a user.
+   * @param {DSUser} user
+   * @returns {RTCPeerConnection}
    */
-  async _handleUser (user, active) {
+  _createPeer (user) {
+    const peer = new window.RTCPeerConnection()
+    peer.addEventListener('icecandidate', async (event) => {
+      if (event.candidate) {
+        const message = new DSMessage(JSON.stringify({ ice: event.candidate }))
+        await this._comm.send(user, message)
+      }
+    })
+    peer.addEventListener('connectionstatechange', () => {
+      this._updateWebrtcPeers()
+    })
+    this._peers.set(user.id, peer)
+    this._updateWebrtcPeers()
+    this._updateServicePeers()
+    return peer
+  }
+
+  /**
+   * Remove a peer and its feed.
+   * @param {DSUser} user
+   */
+  _removePeer (user) {
+    if (this._feeds.has(user.id)) {
+      this._feeds.get(user.id).close()
+      this._feeds.delete(user.id)
+    }
     if (this._peers.has(user.id)) {
       console.info(`Closing old connection for user ${user.id}`)
       this._peers.get(user.id).close()
       this._peers.delete(user.id)
-      this._updateWebrtcPeers()
     }
-    if (!active) {
-      console.info(`User ${user.id} has left.`)
-      this._updateServerPeers()
-      return
-    }
-    await this._signal.connectUser(user)
-    const peer = new window.RTCPeerConnection()
-    this._peers.set(user.id, peer)
-    this._updateServerPeers()
     this._updateWebrtcPeers()
-    peer.addEventListener('icecandidate', async (event) => {
-      if (event.candidate) {
-        const message = new DecentSignalMessage(JSON.stringify({ ice: event.candidate }))
-        await this._signal.sendMessage(user, message)
-      }
-    })
-    const initiator = this._user.id > user.id
-    peer.addEventListener('connectionstatechange', () => {
-      this._updateWebrtcPeers()
-    })
-    if (initiator) {
-      console.log(`Initiating connection with user ${user.id}.`)
-      peer.addEventListener('negotiationneeded', async () => {
-        const offer = await peer.createOffer()
-        await peer.setLocalDescription(offer)
-        const message = new DecentSignalMessage(JSON.stringify({ offer: peer.localDescription }))
-        await this._signal.sendMessage(user, message)
-      })
-      const feed = peer.createDataChannel('feed')
-      this._feeds.set(user.id, feed)
-      feed.addEventListener('message', (event) => {
-        this._handleWebrtcMessage(user, event.data)
-      })
-    } else {
-      console.log(`Receiving connection from user ${user.id}.`)
-      peer.addEventListener('datachannel', (event) => {
-        this._feeds.set(user.id, event.channel)
-        event.channel.addEventListener('message', (event) => {
-          this._handleWebrtcMessage(user, event.data)
-        })
-      })
-    }
+    this._updateServicePeers()
   }
 
   /**
-   * Setup the ui functionality.
+   * Handle user leaving event.
+   * @param {DSUser} user
+   */
+  async _handleUserLeft (user) {
+    this._removePeer(user)
+    console.info(`User ${user.id} has left the service.`)
+  }
+
+  /**
+   * Handle user seen event i.e. when a new user joins.
+   * @param {DSUser} user
+   * @param {() => Promise<void>} connect
+   */
+  async _handleUserSeen (user, connect) {
+    console.log(`User ${user.id} joined the service.`)
+    this._removePeer(user)
+    await connect()
+    const peer = this._createPeer(user)
+    console.info(`Receiving connection from user ${user.id}.`)
+    peer.addEventListener('datachannel', (event) => {
+      this._feeds.set(user.id, event.channel)
+      event.channel.addEventListener('message', (event) => {
+        this._handleWebrtcMessage(user, event.data)
+      })
+    })
+  }
+
+  /**
+   * Handle user found i.e. when we join and query the existing users.
+   * @param {DSUser} user
+   * @param {() => Promise<void>} connect
+   */
+  async _handleUserFound (user, connect) {
+    console.log(`User ${user.id} was found on the service.`)
+    this._removePeer(user)
+    await connect()
+    const peer = this._createPeer(user)
+    console.info(`Initiating connection with user ${user.id}.`)
+    peer.addEventListener('negotiationneeded', async () => {
+      const offer = await peer.createOffer()
+      await peer.setLocalDescription(offer)
+      const signal = JSON.stringify({ offer: peer.localDescription })
+      const message = new DSMessage(signal)
+      await this._comm.send(user, message)
+    })
+    const feed = peer.createDataChannel('feed')
+    this._feeds.set(user.id, feed)
+    feed.addEventListener('message', (event) => {
+      this._handleWebrtcMessage(user, event.data)
+    })
+  }
+
+  /**
+   * Set up the ui functionality.
    */
   _setupUI () {
-    const serverInput = document.getElementById('server-input')
-    serverInput.addEventListener('keyup', (event) => {
+    const serviceInput = document.getElementById('service-input')
+    serviceInput.addEventListener('keyup', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault()
-        const text = serverInput.value.trim()
-        serverInput.value = ''
+        const text = serviceInput.value.trim()
+        serviceInput.value = ''
         if (text !== '') {
-          const message = new DecentSignalMessage(text)
-          this._handleServerMessage(this._user, message)
-          this._server.sendMessage(undefined, message).then()
+          const message = new DSMessage(text)
+          this._handleServiceMessage(this._user, message)
+          this._service.send(message).then()
         }
       }
     })
@@ -151,14 +194,14 @@ class Demo {
   }
 
   /**
-   * Show the server peers on the UI.
+   * Show the service peers on the UI.
    */
-  _updateServerPeers () {
+  _updateServicePeers () {
     let text = ''
     for (const user of this._peers.keys()) {
       text += `${user}\n`
     }
-    document.getElementById('server-peers').textContent = text
+    document.getElementById('service-peers').textContent = text
   }
 
   /**
@@ -173,19 +216,19 @@ class Demo {
   }
 
   /**
-   * Show the server messages on the UI.
-   * @param {DecentSignalUser} from
-   * @param {DecentSignalMessage} message
+   * Show the service messages on the UI.
+   * @param {DSUser} from
+   * @param {DSMessage} message
    */
-  _handleServerMessage (from, message) {
-    const area = document.getElementById('server-messages')
-    area.textContent += `${from.id}: ${message.text}\n`
+  _handleServiceMessage (from, message) {
+    const area = document.getElementById('service-messages')
+    area.textContent += `${from.id}: ${message.data}\n`
     area.scrollTop = area.scrollHeight
   }
 
   /**
    * Show the webrtc messages on the UI.
-   * @param {DecentSignalUser} from
+   * @param {DSUser} from
    * @param {string} message
    */
   _handleWebrtcMessage (from, message) {
@@ -196,20 +239,20 @@ class Demo {
 
   /**
    * Handle signalling data when it arrives from the other user.
-   * @param {DecentSignalUser} from
-   * @param {DecentSignalMessage} message
+   * @param {DSUser} from
+   * @param {DSMessage} message
    */
   async _handleMessage (from, message) {
     const peer = this._peers.get(from.id)
-    const signal = JSON.parse(message.text)
+    const signal = JSON.parse(message.data)
     if (signal.answer) {
       await peer.setRemoteDescription(new window.RTCSessionDescription(signal.answer))
     } else if (signal.offer) {
       await peer.setRemoteDescription(new window.RTCSessionDescription(signal.offer))
       const answer = await peer.createAnswer()
       await peer.setLocalDescription(answer)
-      const message = new DecentSignalMessage(JSON.stringify({ answer: peer.localDescription }))
-      await this._signal.sendMessage(from, message)
+      const message = new DSMessage(JSON.stringify({ answer: peer.localDescription }))
+      await this._comm.send(from, message)
     } else if (signal.ice) {
       await peer.addIceCandidate(new window.RTCIceCandidate(signal.ice))
     }

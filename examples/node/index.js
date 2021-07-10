@@ -1,20 +1,22 @@
 const {
-  DecentSignal,
-  DecentSignalParty,
-  DecentSignalChannel,
-  DecentSignalMessage,
-  DecentSignalNodeCrypto,
-  DecentSignalWebtorrentTracker,
-  DecentSignalWebtorrentTrackerUser,
-  DecentSignalPublicKeyCommunicator
+  DSInMemoryKeystore,
+  DSChannelAsService,
+  DSMessage,
+  DSNodeCrypto,
+  DSPublicKeyCommunicator,
+  DSSharedSecretCommunicator,
+  DSSecretParty,
+  DSSecureCommunication,
+  DSWebtorrentTracker,
+  DSWebtorrentTrackerUser,
 } = require('decent-signal')
 const WebSocket = require('websocket').w3cwebsocket
 const nodeCrypto = require('crypto')
 
 /**
- * Example for node + crypto + public key communication + webtorrent tracker as a channel + party system.
- * The setup is such that if the ids of the users differ by more than 1 then they do not connect.
- * Notice that nodes with wrong pass cannot join a party.
+ * Example for node + crypto + public key + webtorrent tracker + party.
+ * The setup is such that if the ids of the users differ by more than 1 then
+ * they do not connect. The communicator chosen also depends on the party name.
  */
 class Demo {
   /**
@@ -25,12 +27,16 @@ class Demo {
    * @param {string} pass
    */
   constructor (socket, { peerId, infoHash, party, pass }) {
-    this._user = new DecentSignalWebtorrentTrackerUser(peerId, infoHash, 10)
-    const crypto = new DecentSignalNodeCrypto(nodeCrypto)
-    const communicator = new DecentSignalPublicKeyCommunicator(crypto)
-    const tracker = new DecentSignalWebtorrentTracker(socket, this._user)
-    const channel = new DecentSignalChannel(new DecentSignalParty(tracker, crypto, { party, pass }))
-    this._signal = new DecentSignal(communicator, channel)
+    this._user = new DSWebtorrentTrackerUser(peerId, infoHash, 10)
+    const crypto = new DSNodeCrypto(nodeCrypto)
+    const store = new DSInMemoryKeystore()
+    const communicator = parseInt(party.replace('party', '')) % 2 === 0
+      ? new DSPublicKeyCommunicator(crypto, store)
+      : new DSSharedSecretCommunicator(crypto, store)
+    const tracker = new DSWebtorrentTracker(socket, this._user)
+    const secret = new DSSecretParty(tracker, crypto, { party, pass })
+    const service = new DSChannelAsService(secret)
+    this._comm = new DSSecureCommunication(service, communicator)
     this._onUserSeen = (user) => this._handleUser(user, true).then()
     this._onUserLeft = (user) => this._handleUser(user, false).then()
     this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
@@ -40,61 +46,61 @@ class Demo {
    * Start the demo.
    */
   async start () {
-    await this._signal.startSignalling()
-    this._signal.events.connect('user-seen', this._onUserSeen)
-    this._signal.events.connect('user-left', this._onUserLeft)
-    this._signal.events.connect('message-received', this._onMessageReceived)
+    await this._comm.start()
+    this._comm.events.connect('user-seen', this._onUserSeen)
+    this._comm.events.connect('user-left', this._onUserLeft)
+    this._comm.events.connect('message-received', this._onMessageReceived)
   }
 
   /**
    * Stop the demo.
    */
   async stop () {
-    this._signal.events.disconnect('message-received', this._onMessageReceived)
-    this._signal.events.disconnect('user-left', this._onUserLeft)
-    this._signal.events.disconnect('user-seen', this._onUserSeen)
-    await this._signal.stopSignalling()
+    this._comm.events.disconnect('message-received', this._onMessageReceived)
+    this._comm.events.disconnect('user-left', this._onUserLeft)
+    this._comm.events.disconnect('user-seen', this._onUserSeen)
+    await this._comm.stop()
   }
 
   /**
    * Display the incoming message.
-   * @param {DecentSignalUser} from
-   * @param {DecentSignalMessage} message
+   * @param {DSUser} from
+   * @param {DSMessage} message
    */
   async _handleMessage (from, message) {
-    console.info(`Got message "${message.text}" from user ${from.id}.`)
+    console.info(`Got message "${message.data}" from user ${from.id}.`)
   }
 
   /**
    * Display user activity and respond to it.
-   * @param {DecentSignalUser} from
+   * @param {DSUser} user
    * @param {boolean} active
    */
-  async _handleUser (from, active) {
+  async _handleUser (user, active) {
     if (active) {
-      console.info(`User ${from.id} seen on the server.`)
-      if (this._shouldConnect(from)) {
-        await this._signal.connectUser(from)
-        console.info(`Connected to user ${from.id}.`)
-        const message = new DecentSignalMessage(`Hello! from ${this._user.id}`)
-        await this._signal.sendMessage(from, message)
+      console.info(`User ${user.id} seen on the server.`)
+      if (this._shouldConnect(user)) {
+        await this._comm.connect(user)
+        console.info(`Connected to user ${user.id}.`)
+        const message = new DSMessage(`Hello! from user ${this._user.id}`)
+        await this._comm.send(user, message)
       } else {
-        console.info(`Ignored user ${from.id}.`)
+        console.info(`Ignored user ${user.id}.`)
       }
     } else {
-      console.info(`User ${from.id} has left the server.`)
+      console.info(`User ${user.id} has left the server.`)
     }
   }
 
   /**
    * If we should connect to the user or not.
-   * @param {DecentSignalUser} from
+   * @param {DSUser} from
    * @returns {boolean}
    */
   _shouldConnect (from) {
-    const a = this._user.id.replace('peerIdPrefix-peerId', '')
-    const b = from.id.replace('peerIdPrefix-peerId', '')
-    return Math.abs(parseInt(a) - parseInt(b)) === 1
+    const trim = (id) => id.replace('peerIdPrefix-peerId', '')
+    const diff = parseInt(trim(this._user.id)) - parseInt(trim(from.id))
+    return Math.abs(diff) === 1
   }
 }
 
@@ -110,7 +116,7 @@ async function main () {
   // })
   // Testing with local instance of bittorrent-tracker.
   const socket = new WebSocket('ws://localhost:8000')
-  socket.onclose = (evt) => console.error(`Socket closed due to ${evt.code}: ${evt.reason}`)
+  socket.onclose = (evt) => console.info(`Socket closed due to ${evt.code}: ${evt.reason}`)
   await new Promise(resolve => { socket.onopen = (_) => resolve() })
   const demo = new Demo(socket, {
     peerId: 'peerIdPrefix-' + process.argv[2],
