@@ -1,51 +1,44 @@
-import { DecentSignalEvents } from '../utilities/events'
+/**
+ * @event DSCommunicator#event:key-changed
+ * @param {DSKey} key
+ */
 
 /**
- * List of contacts that we can communicate to and how.
- * TODO: Is this a good name?
- *
- * The event "contact-info" is emitted when our contact information changes.
+ * Abstraction over various types of cryptographic communication strategies.
+ * @interface
+ * @implements DSEventsProvider
  */
-export class DecentSignalCommunicator {
+export class DSCommunicator {
   /**
-   * Implementors can use the events field.
+   * Build our key.
+   * @returns {Promise<DSKey>} key
    */
-  constructor () {
-    this.events = new DecentSignalEvents()
-  }
+  async buildKey () {}
 
   /**
-   * Build our contact information.
-   * @returns {DecentSignalContact}
+   * Accept key from a user.
+   * @param {DSUser} from
+   * @param {DSKey} key
    */
-  async getContact () {}
+  async acceptKey (from, key) {}
 
   /**
-   * Set contact for a user.
-   * @param {DecentSignalUser} of
-   * @param {DecentSignalContact} contact
+   * Remove key for a user.
+   * @param {DSUser} of
    */
-  async setContact (of, contact) {}
+  async removeKey (of) {}
 
   /**
-   * Remove contact of a user.
-   * @param {DecentSignalUser} of
+   * Encrypt plain message for a user.
+   * @param {DSUser} to
+   * @param {DSMessage} message
    */
-  removeContact (of) {}
+  async encrypt (to, message) {}
 
   /**
-   * Encrypt plain text for a user.
-   * @param {DecentSignalUser} to
-   * @param {string} text
-   * @returns {Promise<string>}
+   * Decrypt encrypted message for a user.
+   * @param {DSUser} from
+   * @param {DSMessage} message
    */
-  async encryptText (to, text) {}
-
-  /**
-   * Decrypt encrypted text for a user.
-   * @param {DecentSignalUser} from
-   * @param {string} text
-   * @returns {Promise<string>}
-   */
-  async decryptText (from, text) {}
+  async decrypt (from, message) {}
 }

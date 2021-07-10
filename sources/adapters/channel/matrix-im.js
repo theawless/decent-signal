@@ -1,26 +1,41 @@
-import { DecentSignalChat } from '../interfaces/chat'
-import { DecentSignalMessage, DecentSignalUser } from '../interfaces/models'
+import { DSMessage } from '../../models/message'
+import { DSUser } from '../../models/user'
+import { DSEventEmitter } from '../../utilities/event-emitter'
+
+/**
+ * @event DSMatrixIM#event:message-received
+ * @param {DSUser} from
+ * @param {DSMessage} message
+ */
 
 /**
  * Abstraction over matrix instant messaging system.
+ * @implements DSChannel
  */
-export class DecentSignalMatrixChat extends DecentSignalChat {
+export class DSMatrixIM {
   /**
    * The client should be already logged in.
    * @param {MatrixClient} client
    * @param {{room: string}} options
    */
   constructor (client, options) {
-    super()
+    this._emitter = new DSEventEmitter()
     this._client = client
     this._options = options
     this._onRoomEvent = (event) => this._handleEvent(event)
   }
 
   /**
+   * @returns {DSEvents}
+   */
+  get events () {
+    return this._emitter
+  }
+
+  /**
    * Start the client, join the room, and start listening to room events.
    */
-  async joinChat () {
+  async join () {
     await this._client.clearStores() // need to clear the cache status
     const filter = await this._client.createFilter(this._buildFilter())
     this._client.startClient({ filter })
@@ -31,7 +46,7 @@ export class DecentSignalMatrixChat extends DecentSignalChat {
   /**
    * Stop listening to room events, leave the room, and stop the client.
    */
-  async leaveChat () {
+  async leave () {
     this._client.removeListener('Room.timeline', this._onRoomEvent)
     await this._client.leave(this._options.room)
     this._client.stopClient()
@@ -39,14 +54,14 @@ export class DecentSignalMatrixChat extends DecentSignalChat {
 
   /**
    * Send message by creating an event in the room.
-   * @param {DecentSignalUser | undefined} to
-   * @param {DecentSignalMessage} message
+   * @param {DSMessage} message
+   * @param {DSUser} [to]
    */
-  async sendMessage (to, message) {
+  async send (message, to) {
     const content = {
       body: JSON.stringify({
         to: to ? to.id : '',
-        text: message.text
+        text: message.data
       }),
       msgtype: 'm.text'
     }
@@ -55,7 +70,7 @@ export class DecentSignalMatrixChat extends DecentSignalChat {
 
   /**
    * Create a filter that reduces the number of events we listen to.
-   * TODO: Can this be made better?
+   * @returns {object}
    */
   _buildFilter () {
     return {
@@ -71,7 +86,7 @@ export class DecentSignalMatrixChat extends DecentSignalChat {
 
   /**
    * Handler for timeline event.
-   * @param event {MatrixEvent}
+   * @param {MatrixEvent} event
    */
   _handleEvent (event) {
     if (event.getType() !== 'm.room.message' || event.getContent().msgtype !== 'm.text') {
@@ -85,11 +100,11 @@ export class DecentSignalMatrixChat extends DecentSignalChat {
       if (to !== '' && to !== this._client.getUserId()) {
         return
       }
-      const from = new DecentSignalUser(event.getSender())
-      const message = new DecentSignalMessage(text)
-      this.events.emit('message-received', from, message)
+      const from = new DSUser(event.getSender())
+      const message = new DSMessage(text)
+      this._emitter.emit('message-received', from, message)
     } catch (e) {
-      console.log(`Getting weird data from user ${event.getSender()}.`)
+      console.log(`User ${event.getSender()} is sending weird message.`)
     }
   }
 }
