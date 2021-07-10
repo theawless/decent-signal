@@ -191,7 +191,8 @@ async function main () {
   const accessToken = window.localStorage.getItem(TOKEN_KEY)
   const client = window.matrixcs.createClient({
     baseUrl: 'https://matrix.org',
-    userId, accessToken
+    userId,
+    accessToken
   })
   const demo = new Demo(pad, client, { room: ROOM })
   if (userId && accessToken) {

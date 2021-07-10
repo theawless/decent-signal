@@ -8,7 +8,7 @@ const {
   DSSecretParty,
   DSSecureCommunication,
   DSWebtorrentTracker,
-  DSWebtorrentTrackerUser,
+  DSWebtorrentTrackerUser
 } = require('decent-signal')
 const WebSocket = require('websocket').w3cwebsocket
 const nodeCrypto = require('crypto')
