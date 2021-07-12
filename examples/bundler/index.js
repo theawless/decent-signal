@@ -1,11 +1,13 @@
 import {
+  DSCommunicator,
   DSInMemoryKeystore,
+  DSManualPeer,
   DSMessage,
-  DSPublicKeyCommunicator,
-  DSSecureCommunication,
+  DSPublicKeySystem,
   DSSyncedRxDBService,
   DSUser,
-  DSWebCrypto
+  DSWebCrypto,
+  DSWebrtcSignaller
 } from 'decent-signal'
 
 /**
@@ -21,137 +23,134 @@ class Demo {
     this._service = new DSSyncedRxDBService(db, this._user)
     const crypto = new DSWebCrypto(window.crypto)
     const store = new DSInMemoryKeystore()
-    const communicator = new DSPublicKeyCommunicator(crypto, store)
-    this._comm = new DSSecureCommunication(this._service, communicator)
-    this._peers = new Map() // user id to peer map
-    this._feeds = new Map() // user id to feed map
-    this._onUserSeen = (user, connect) => this._handleUserSeen(user, connect).then()
-    this._onUserLeft = (user) => this._handleUserLeft(user).then()
+    const system = new DSPublicKeySystem(crypto, store)
+    const comm = new DSCommunicator(this._service, system)
+    this._signal = new DSWebrtcSignaller(comm)
+    this._users = new Map() // user id to user
+    this._peers = new Map() // user id to peer
+    this._feeds = new Map() // user id to feed
+    this._onSignalInitiator = (user, connect, setup) => this._handleSignalInitiate(user, connect, setup).then()
+    this._onSignalResponder = (user, connect, setup) => this._handleSignalRespond(user, connect, setup).then()
+    this._onServiceUserJoin = (user) => this._handleServiceUser(user, 'join')
+    this._onServiceUserSeen = (user) => this._handleServiceUser(user, 'seen')
+    this._onServiceUserLeft = (user) => this._handleServiceUser(user, 'left')
     this._onServiceMessageReceived = (from, message) => this._handleServiceMessage(from, message)
-    this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
   }
 
   /**
    * Start the demo.
    */
   async start () {
-    await this._comm.start()
-    this._comm.events.connect('user-seen', this._onUserSeen)
-    this._comm.events.connect('user-left', this._onUserLeft)
-    this._comm.events.connect('message-received', this._onMessageReceived)
+    await this._signal.start()
+    this._signal.events.connect('initiator', this._onSignalInitiator)
+    this._signal.events.connect('responder', this._onSignalResponder)
+    this._service.events.connect('user-join', this._onServiceUserJoin)
+    this._service.events.connect('user-seen', this._onServiceUserSeen)
+    this._service.events.connect('user-left', this._onServiceUserLeft)
     this._service.events.connect('message-received', this._onServiceMessageReceived)
     this._setupUI()
-    for (const { user, connect } of await this._comm.everyone()) {
-      await this._handleUserFound(user, connect)
-    }
   }
 
   /**
    * Stop the demo.
    */
   async stop () {
-    for (const peer of this._peers.values()) {
-      peer.close()
-    }
+    this._users.clear()
     for (const feed of this._feeds.values()) {
       feed.close()
     }
-    this._peers.clear()
     this._feeds.clear()
+    for (const peer of this._peers.values()) {
+      peer.close()
+    }
+    this._peers.clear()
     this._service.events.disconnect('message-received', this._onServiceMessageReceived)
-    this._comm.events.disconnect('message-received', this._onMessageReceived)
-    this._comm.events.disconnect('user-seen', this._onUserSeen)
-    this._comm.events.disconnect('user-left', this._onUserLeft)
+    this._service.events.disconnect('user-left', this._onServiceUserLeft)
+    this._service.events.disconnect('user-seen', this._onServiceUserSeen)
+    this._service.events.disconnect('user-join', this._onServiceUserJoin)
+    this._signal.events.disconnect('responder', this._onSignalResponder)
+    this._signal.events.disconnect('initiator', this._onSignalInitiator)
     await this._comm.stop()
   }
 
   /**
-   * Create a webrtc peer for a user.
+   * Maintain the users in a local map for display.
    * @param {DSUser} user
-   * @returns {RTCPeerConnection}
+   * @param {string} action
    */
-  _createPeer (user) {
+  _handleServiceUser (user, action) {
+    console.log(`User ${user.id} action ${action} on the service.`)
+    if (action === 'join' || action === 'seen') {
+      this._users.set(user.id, user)
+    } else {
+      this._users.delete(user.id)
+    }
+    this._updateServicePeers()
+  }
+
+  /**
+   * Initiate signalling and create the feed.
+   * @param {DSUser} user
+   * @param {() => Promise<void>} connect
+   * @param {(DSWebrtcPeer) => void} setup
+   */
+  async _handleSignalInitiate (user, connect, setup) {
+    console.log(`Initiate signalling with user ${user.id}.`)
     const peer = new window.RTCPeerConnection()
-    peer.addEventListener('icecandidate', async (event) => {
-      if (event.candidate) {
-        const message = new DSMessage(JSON.stringify({ ice: event.candidate }))
-        await this._comm.send(user, message)
-      }
+    this._setupPeer(user, peer)
+    await connect()
+    const manual = new DSManualPeer(window, peer, true)
+    setup(manual)
+    const feed = peer.createDataChannel('feed')
+    this._setupFeed(user, feed)
+    await manual.complete()
+  }
+
+  /**
+   * Respond to signalling and accept the feed.
+   * @param {DSUser} user
+   * @param {() => Promise<void>} connect
+   * @param {(DSWebrtcPeer) => void} setup
+   */
+  async _handleSignalRespond (user, connect, setup) {
+    console.log(`Respond to signalling from user ${user.id}.`)
+    const peer = new window.RTCPeerConnection()
+    this._setupPeer(user, peer)
+    await connect()
+    const manual = new DSManualPeer(window, peer, false)
+    setup(manual)
+    peer.addEventListener('datachannel', (event) => {
+      this._setupFeed(user, event.channel)
     })
+    await manual.complete()
+  }
+
+  /**
+   * Set up the peer.
+   * @param {DSUser} user
+   * @param {RTCPeerConnection} peer
+   */
+  _setupPeer (user, peer) {
+    if (this._peers.has(user.id)) {
+      console.log(`Closing old webrtc connection with user ${user.id}.`)
+      this._peers.get(user.id).close()
+    }
+    this._peers.set(user.id, peer)
     peer.addEventListener('connectionstatechange', () => {
       this._updateWebrtcPeers()
     })
-    this._peers.set(user.id, peer)
     this._updateWebrtcPeers()
-    this._updateServicePeers()
-    return peer
   }
 
   /**
-   * Remove a peer and its feed.
+   * Set up the feed.
    * @param {DSUser} user
+   * @param {RTCDataChannel} feed
    */
-  _removePeer (user) {
+  _setupFeed (user, feed) {
     if (this._feeds.has(user.id)) {
       this._feeds.get(user.id).close()
-      this._feeds.delete(user.id)
     }
-    if (this._peers.has(user.id)) {
-      console.info(`Closing old connection for user ${user.id}`)
-      this._peers.get(user.id).close()
-      this._peers.delete(user.id)
-    }
-    this._updateWebrtcPeers()
-    this._updateServicePeers()
-  }
-
-  /**
-   * Handle user leaving event.
-   * @param {DSUser} user
-   */
-  async _handleUserLeft (user) {
-    this._removePeer(user)
-    console.info(`User ${user.id} has left the service.`)
-  }
-
-  /**
-   * Handle user seen event i.e. when a new user joins.
-   * @param {DSUser} user
-   * @param {() => Promise<void>} connect
-   */
-  async _handleUserSeen (user, connect) {
-    console.log(`User ${user.id} joined the service.`)
-    this._removePeer(user)
-    await connect()
-    const peer = this._createPeer(user)
-    console.info(`Receiving connection from user ${user.id}.`)
-    peer.addEventListener('datachannel', (event) => {
-      this._feeds.set(user.id, event.channel)
-      event.channel.addEventListener('message', (event) => {
-        this._handleWebrtcMessage(user, event.data)
-      })
-    })
-  }
-
-  /**
-   * Handle user found i.e. when we join and query the existing users.
-   * @param {DSUser} user
-   * @param {() => Promise<void>} connect
-   */
-  async _handleUserFound (user, connect) {
-    console.log(`User ${user.id} was found on the service.`)
-    this._removePeer(user)
-    await connect()
-    const peer = this._createPeer(user)
-    console.info(`Initiating connection with user ${user.id}.`)
-    peer.addEventListener('negotiationneeded', async () => {
-      const offer = await peer.createOffer()
-      await peer.setLocalDescription(offer)
-      const signal = JSON.stringify({ offer: peer.localDescription })
-      const message = new DSMessage(signal)
-      await this._comm.send(user, message)
-    })
-    const feed = peer.createDataChannel('feed')
     this._feeds.set(user.id, feed)
     feed.addEventListener('message', (event) => {
       this._handleWebrtcMessage(user, event.data)
@@ -165,22 +164,20 @@ class Demo {
     const serviceInput = document.getElementById('service-input')
     serviceInput.addEventListener('keyup', (event) => {
       if (event.key === 'Enter') {
-        event.preventDefault()
         const text = serviceInput.value.trim()
-        serviceInput.value = ''
         if (text !== '') {
           const message = new DSMessage(text)
           this._handleServiceMessage(this._user, message)
           this._service.send(message).then()
         }
+        serviceInput.value = ''
+        event.preventDefault()
       }
     })
     const webRtcInput = document.getElementById('webrtc-input')
     webRtcInput.addEventListener('keyup', (event) => {
       if (event.key === 'Enter') {
-        event.preventDefault()
         const text = webRtcInput.value.trim()
-        webRtcInput.value = ''
         if (text !== '') {
           this._handleWebrtcMessage(this._user, text)
           for (const feed of this._feeds.values()) {
@@ -189,6 +186,8 @@ class Demo {
             }
           }
         }
+        webRtcInput.value = ''
+        event.preventDefault()
       }
     })
   }
@@ -198,7 +197,7 @@ class Demo {
    */
   _updateServicePeers () {
     let text = ''
-    for (const user of this._peers.keys()) {
+    for (const user of this._users.keys()) {
       text += `${user}\n`
     }
     document.getElementById('service-peers').textContent = text
@@ -235,27 +234,6 @@ class Demo {
     const area = document.getElementById('webrtc-messages')
     area.textContent += `${from.id}: ${message}\n`
     area.scrollTop = area.scrollHeight
-  }
-
-  /**
-   * Handle signalling data when it arrives from the other user.
-   * @param {DSUser} from
-   * @param {DSMessage} message
-   */
-  async _handleMessage (from, message) {
-    const peer = this._peers.get(from.id)
-    const signal = JSON.parse(message.data)
-    if (signal.answer) {
-      await peer.setRemoteDescription(new window.RTCSessionDescription(signal.answer))
-    } else if (signal.offer) {
-      await peer.setRemoteDescription(new window.RTCSessionDescription(signal.offer))
-      const answer = await peer.createAnswer()
-      await peer.setLocalDescription(answer)
-      const message = new DSMessage(JSON.stringify({ answer: peer.localDescription }))
-      await this._comm.send(from, message)
-    } else if (signal.ice) {
-      await peer.addIceCandidate(new window.RTCIceCandidate(signal.ice))
-    }
   }
 }
 

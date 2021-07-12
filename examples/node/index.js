@@ -1,22 +1,23 @@
 const {
-  DSInMemoryKeystore,
   DSChannelAsService,
+  DSChannelWithFilter,
+  DSCommunicator,
+  DSInMemoryKeystore,
   DSMessage,
   DSNodeCrypto,
-  DSPublicKeyCommunicator,
-  DSSharedSecretCommunicator,
+  DSPublicKeySystem,
   DSSecretParty,
-  DSSecureCommunication,
+  DSSharedSecretSystem,
   DSWebtorrentTracker,
   DSWebtorrentTrackerUser
 } = require('decent-signal')
+const Crypto = require('crypto')
 const WebSocket = require('websocket').w3cwebsocket
-const nodeCrypto = require('crypto')
 
 /**
  * Example for node + crypto + public key + webtorrent tracker + party.
  * The setup is such that if the ids of the users differ by more than 1 then
- * they do not connect. The communicator chosen also depends on the party name.
+ * they do not connect. The crypto system chosen also depends on the party name.
  */
 class Demo {
   /**
@@ -28,17 +29,24 @@ class Demo {
    */
   constructor (socket, { peerId, infoHash, party, pass }) {
     this._user = new DSWebtorrentTrackerUser(peerId, infoHash, 10)
-    const crypto = new DSNodeCrypto(nodeCrypto)
+    const crypto = new DSNodeCrypto(Crypto)
     const store = new DSInMemoryKeystore()
-    const communicator = parseInt(party.replace('party', '')) % 2 === 0
-      ? new DSPublicKeyCommunicator(crypto, store)
-      : new DSSharedSecretCommunicator(crypto, store)
+    const system = parseInt(party.replace('party', '')) % 2 === 0
+      ? new DSPublicKeySystem(crypto, store)
+      : new DSSharedSecretSystem(crypto, store)
     const tracker = new DSWebtorrentTracker(socket, this._user)
-    const secret = new DSSecretParty(tracker, crypto, { party, pass })
+    const filter = (from) => {
+      const trim = (id) => id.replace('peerIdPrefix-peerId', '')
+      const diff = parseInt(trim(this._user.id)) - parseInt(trim(from.id))
+      return Math.abs(diff) === 1
+    }
+    const filtered = new DSChannelWithFilter(tracker, filter)
+    const secret = new DSSecretParty(filtered, crypto, { party, pass })
     const service = new DSChannelAsService(secret)
-    this._comm = new DSSecureCommunication(service, communicator)
-    this._onUserSeen = (user) => this._handleUser(user, true).then()
-    this._onUserLeft = (user) => this._handleUser(user, false).then()
+    this._comm = new DSCommunicator(service, system)
+    this._onUserJoin = (user) => this._handleUser(user, 'join').then()
+    this._onUserSeen = (user) => this._handleUser(user, 'seen').then()
+    this._onUserLeft = (user) => this._handleUser(user, 'left').then()
     this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
   }
 
@@ -47,6 +55,7 @@ class Demo {
    */
   async start () {
     await this._comm.start()
+    this._comm.events.connect('user-join', this._onUserJoin)
     this._comm.events.connect('user-seen', this._onUserSeen)
     this._comm.events.connect('user-left', this._onUserLeft)
     this._comm.events.connect('message-received', this._onMessageReceived)
@@ -59,6 +68,7 @@ class Demo {
     this._comm.events.disconnect('message-received', this._onMessageReceived)
     this._comm.events.disconnect('user-left', this._onUserLeft)
     this._comm.events.disconnect('user-seen', this._onUserSeen)
+    this._comm.events.disconnect('user-join', this._onUserJoin)
     await this._comm.stop()
   }
 
@@ -74,33 +84,16 @@ class Demo {
   /**
    * Display user activity and respond to it.
    * @param {DSUser} user
-   * @param {boolean} active
+   * @param {string} action
    */
-  async _handleUser (user, active) {
-    if (active) {
-      console.info(`User ${user.id} seen on the server.`)
-      if (this._shouldConnect(user)) {
-        await this._comm.connect(user)
-        console.info(`Connected to user ${user.id}.`)
-        const message = new DSMessage(`Hello! from user ${this._user.id}`)
-        await this._comm.send(user, message)
-      } else {
-        console.info(`Ignored user ${user.id}.`)
-      }
-    } else {
-      console.info(`User ${user.id} has left the server.`)
+  async _handleUser (user, action) {
+    console.log(`User ${user.id} action ${action} on the service.`)
+    if (action === 'join' || action === 'seen') {
+      await this._comm.connect(user)
+      console.info(`Connected to user ${user.id}.`)
+      const message = new DSMessage(`Hello! from user ${this._user.id}`)
+      await this._comm.send(user, message)
     }
-  }
-
-  /**
-   * If we should connect to the user or not.
-   * @param {DSUser} from
-   * @returns {boolean}
-   */
-  _shouldConnect (from) {
-    const trim = (id) => id.replace('peerIdPrefix-peerId', '')
-    const diff = parseInt(trim(this._user.id)) - parseInt(trim(from.id))
-    return Math.abs(diff) === 1
   }
 }
 
@@ -116,7 +109,7 @@ async function main () {
   // })
   // Testing with local instance of bittorrent-tracker.
   const socket = new WebSocket('ws://localhost:8000')
-  socket.onclose = (evt) => console.info(`Socket closed due to ${evt.code}: ${evt.reason}`)
+  socket.onclose = (event) => console.info(`Socket closed due to ${event.code}: ${event.reason}`)
   await new Promise(resolve => { socket.onopen = (_) => resolve() })
   const demo = new Demo(socket, {
     peerId: 'peerIdPrefix-' + process.argv[2],

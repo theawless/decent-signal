@@ -14,12 +14,12 @@ class Demo {
     const service = new window.decentSignal.DSChannelAsService(channel)
     const crypto = new window.decentSignal.DSWebCrypto(window.crypto)
     const store = new window.decentSignal.DSInMemoryKeystore()
-    const communicator = new window.decentSignal.DSSharedSecretCommunicator(crypto, store)
-    this._comm = new window.decentSignal.DSSecureCommunication(service, communicator)
-    this._peers = new Map() // map of user id to peer
-    this._onUserSeen = (user, connect) => this._handleUser(user, connect).then()
-    this._onUserLeft = (user) => this._handleUser(user).then()
-    this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
+    const system = new window.decentSignal.DSSharedSecretSystem(crypto, store)
+    const comm = new window.decentSignal.DSCommunicator(service, system)
+    this._signal = new window.decentSignal.DSWebrtcSignaller(comm)
+    this._peers = new Map() // user id to peer
+    this._onInitiator = (user, connect, setup) => this._handleUser(user, connect, setup, true).then()
+    this._onResponder = (user, connect, setup) => this._handleUser(user, connect, setup, false).then()
     this._setupUI()
   }
 
@@ -27,10 +27,9 @@ class Demo {
    * Start the demo.
    */
   async start () {
-    await this._comm.start()
-    this._comm.events.connect('user-seen', this._onUserSeen)
-    this._comm.events.connect('user-left', this._onUserLeft)
-    this._comm.events.connect('message-received', this._onMessageReceived)
+    await this._signal.start()
+    this._signal.events.connect('initiator', this._onInitiator)
+    this._signal.events.connect('responder', this._onResponder)
   }
 
   /**
@@ -38,63 +37,38 @@ class Demo {
    */
   async stop () {
     for (const peer of this._peers.values()) {
-      peer.destroy()
+      peer.peer.destroy()
     }
     this._peers.clear()
-    this._comm.events.disconnect('message-received', this._onMessageReceived)
-    this._comm.events.disconnect('user-seen', this._onUserSeen)
-    this._comm.events.disconnect('user-left', this._onUserLeft)
-    await this._comm.stop()
+    this._signal.events.disconnect('responder', this._onResponder)
+    this._signal.events.disconnect('initiator', this._onInitiator)
+    await this._signal.stop()
   }
 
   /**
    * Handle user updates by starting webrtc connections.
    * @param {DSUser} user
-   * @param {() => Promise<void>} [connect]
+   * @param {() => Promise<void>} connect
+   * @param {(DSWebrtcPeer) => void} setup
+   * @param {boolean} initiator
    */
-  async _handleUser (user, connect) {
+  async _handleUser (user, connect, setup, initiator) {
     if (this._peers.has(user.id)) {
-      this._peers.get(user.id).destroy()
+      console.log(`Closing old webrtc connection with user ${user.id}.`)
+      this._peers.get(user.id).peer.destroy()
       this._peers.delete(user.id)
     }
-    if (!connect) {
-      console.info(`User ${user.id} has left matrix.`)
-      return
-    }
-    console.info(`User ${user.id} seen on matrix.`)
+    console.log(`Start connection with user ${user.id}, initiator ${initiator}.`)
     await connect()
-    const peer = new window.SimplePeer({ initiator: true, trickle: false })
-    peer.on('signal', (data) => {
-      console.info(`Sending signalling data to user ${user.id}.`)
-      const message = new window.decentSignal.DSMessage(JSON.stringify(data))
-      this._comm.send(user, message).then()
-    })
-    peer.on('data', (data) => {
+    const peer = new window.decentSignal.DSSimplePeer(
+      new window.SimplePeer({ initiator, trickle: false })
+    )
+    this._peers.set(user.id, peer)
+    setup(peer)
+    peer.peer.on('data', (data) => {
       this._pad.fillImageByDataURL(JSON.parse(data)).then()
     })
-    peer.on('connect', () => {
-      console.info(`Webrtc connection established with user ${user.id}.`)
-      const data = JSON.stringify(this._pad.toDataURL())
-      peer.send(data)
-    })
-    peer.on('close', () => {
-      console.info(`Webrtc connection closed with user ${user.id}.`)
-    })
-    peer.on('error', () => {
-      console.info(`Webrtc connection errored with user ${user.id}.`)
-    })
-    this._peers.set(user.id, peer)
-  }
-
-  /**
-   * Handle signalling data when it arrives from the other user.
-   * @param {DSUser} from
-   * @param {DSMessage} message
-   */
-  async _handleMessage (from, message) {
-    console.info(`Received signalling data from user ${from.id}.`)
-    const peer = this._peers.get(from.id)
-    peer.signal(JSON.parse(message.data))
+    await peer.complete()
   }
 
   /**
@@ -123,8 +97,8 @@ class Demo {
     this._pad.observer.on('drawEnd', (_) => {
       const data = JSON.stringify(this._pad.toDataURL())
       for (const peer of this._peers.values()) {
-        if (peer.connected) {
-          peer.send(data)
+        if (peer.peer.connected) {
+          peer.peer.send(data)
         }
       }
     })
