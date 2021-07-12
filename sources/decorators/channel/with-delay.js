@@ -1,4 +1,4 @@
-import { DSEventEmitter } from '../../utilities/event-emitter'
+import { DSEventEmitter } from '../../utilities/events'
 
 /**
  * @event DSChannelWithDelay#event:message-received

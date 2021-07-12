@@ -1,5 +1,5 @@
 /**
- * @event DSCommunicator#event:key-changed
+ * @event DSCryptoSystem#event:key-changed
  * @param {DSKey} key
  */
 
@@ -8,7 +8,7 @@
  * @interface
  * @implements DSEventsProvider
  */
-export class DSCommunicator {
+export class DSCryptoSystem {
   /**
    * Build our key.
    * @returns {Promise<DSKey>} key

@@ -1,15 +1,25 @@
 /**
+ * Emitted when we see a user who has just joined.
+ * @event DSKeyserver#event:user-join
+ * @param {DSUser} user
+ * @param {DSKey} key
+ */
+
+/**
+ * Emitted when we see the users who joined before us.
  * @event DSKeyserver#event:user-seen
  * @param {DSUser} user
  * @param {DSKey} key
  */
 
 /**
+ * Emitted when a user leaves.
  * @event DSKeyserver#event:user-left
  * @param {DSUser} user
  */
 
 /**
+ * Emitted when a user has reset their key.
  * @event DSKeyserver#event:user-reset
  * @param {DSUser} user
  * @param {DSKey} key
@@ -44,10 +54,4 @@ export class DSKeyserver {
    * @returns {Promise<DSKey | undefined>}
    */
   async obtain (of) {}
-
-  /**
-   * Get all users in the server along with their keys.
-   * @returns {Promise<Array<{user: DSUser, key: DSKey}>>}
-   */
-  async everyone () {}
 }

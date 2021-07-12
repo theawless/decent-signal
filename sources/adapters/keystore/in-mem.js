@@ -1,7 +1,7 @@
 import { DSKey } from '../../models/key'
 
 /**
- * Storage user keys in the memory.
+ * Store user keys in the memory.
  * @implements DSKeystore
  */
 export class DSInMemoryKeystore {

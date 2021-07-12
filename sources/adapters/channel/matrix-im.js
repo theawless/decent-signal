@@ -1,6 +1,6 @@
 import { DSMessage } from '../../models/message'
 import { DSUser } from '../../models/user'
-import { DSEventEmitter } from '../../utilities/event-emitter'
+import { DSEventEmitter } from '../../utilities/events'
 
 /**
  * @event DSMatrixIM#event:message-received
@@ -104,7 +104,7 @@ export class DSMatrixIM {
       const message = new DSMessage(text)
       this._emitter.emit('message-received', from, message)
     } catch (e) {
-      console.log(`User ${event.getSender()} is sending weird message.`)
+      console.log(`User ${event.getSender()} is sending ill-formed message.`)
     }
   }
 }

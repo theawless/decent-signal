@@ -1,18 +1,24 @@
-import { DSEventEmitter } from './utilities/event-emitter'
+import { DSEventEmitter } from './utilities/events'
 
 /**
- * @event DSSecureCommunication#event:user-seen
+ * @event DSCommunicator#event:user-join
  * @param {DSUser} user
  * @param {() => Promise<void>} connect
  */
 
 /**
- * @event DSSecureCommunication#event:user-left
+ * @event DSCommunicator#event:user-seen
+ * @param {DSUser} user
+ * @param {() => Promise<void>} connect
+ */
+
+/**
+ * @event DSCommunicator#event:user-left
  * @param {DSUser} user
  */
 
 /**
- * @event DSSecureCommunication#event:message-received
+ * @event DSCommunicator#event:message-received
  * @param {DSUser} user
  * @param {DSMessage} message
  */
@@ -21,17 +27,18 @@ import { DSEventEmitter } from './utilities/event-emitter'
  * Cryptographically secure communication.
  * @implements DSEventsProvider
  */
-export class DSSecureCommunication {
+export class DSCommunicator {
   /**
    * @param {DSService} service
-   * @param {DSCommunicator} communicator
+   * @param {DSCryptoSystem} system
    */
-  constructor (service, communicator) {
+  constructor (service, system) {
     this._emitter = new DSEventEmitter()
     this._service = service
-    this._communicator = communicator
-    this._users = new Map() // user id to user map
+    this._system = system
+    this._users = new Map() // user id to user
     this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
+    this._onUserJoin = (user, key) => this._handleUser(user, 'join', key).then()
     this._onUserSeen = (user, key) => this._handleUser(user, 'seen', key).then()
     this._onUserLeft = (user) => this._handleUser(user, 'left').then()
     this._onUserReset = (user, key) => this._handleUser(user, 'reset', key).then()
@@ -49,23 +56,25 @@ export class DSSecureCommunication {
    * Start the communication.
    */
   async start () {
-    const key = await this._communicator.buildKey()
+    const key = await this._system.buildKey()
     await this._service.join(key)
     this._service.events.connect('message-received', this._onMessageReceived)
+    this._service.events.connect('user-join', this._onUserJoin)
     this._service.events.connect('user-seen', this._onUserSeen)
-    this._service.events.connect('user-left', this._onUserLeft)
     this._service.events.connect('user-reset', this._onUserReset)
-    this._communicator.events.connect('key-changed', this._onKeyChanged)
+    this._service.events.connect('user-left', this._onUserLeft)
+    this._system.events.connect('key-changed', this._onKeyChanged)
   }
 
   /**
    * Stop the communication.
    */
   async stop () {
-    this._communicator.events.disconnect('key-changed', this._onKeyChanged)
-    this._service.events.disconnect('user-reset', this._onUserReset)
+    this._system.events.disconnect('key-changed', this._onKeyChanged)
     this._service.events.disconnect('user-left', this._onUserLeft)
+    this._service.events.disconnect('user-reset', this._onUserReset)
     this._service.events.disconnect('user-seen', this._onUserSeen)
+    this._service.events.disconnect('user-join', this._onUserJoin)
     this._service.events.disconnect('message-received', this._onMessageReceived)
     await this._service.leave()
   }
@@ -81,10 +90,10 @@ export class DSSecureCommunication {
       key = await this._service.obtain(to)
     }
     if (!key) {
-      throw new Error('user not found on the service')
+      throw new Error('user not present on the service')
     }
     try {
-      await this._communicator.acceptKey(to, key)
+      await this._system.acceptKey(to, key)
       this._users.set(to.id, to)
     } catch (e) {
       console.error(e)
@@ -93,36 +102,15 @@ export class DSSecureCommunication {
   }
 
   /**
-   * Disconnect from a peer.
+   * Disconnect from a connected user.
    * @param {DSUser} from
    */
   async disconnect (from) {
     if (this._users.delete(from.id)) {
-      await this._communicator.removeKey(from)
+      await this._system.removeKey(from)
     } else {
-      throw new Error(`user ${from.id} was not a peer`)
+      throw new Error(`user ${from.id} was not connected`)
     }
-  }
-
-  /**
-   * Get connected users.
-   * @returns {Array<DSUser>}
-   */
-  peers () {
-    return [...this._users.values()]
-  }
-
-  /**
-   * Get all users on the service along with their connectors.
-   * @returns {Promise<Array<{user: DSUser, connect: () => Promise<void>}>>}
-   */
-  async everyone () {
-    const array = []
-    for (const { user, key } of await this._service.everyone()) {
-      const connect = async () => await this.connect(user, key)
-      array.push({ user, connect })
-    }
-    return array
   }
 
   /**
@@ -131,8 +119,11 @@ export class DSSecureCommunication {
    * @param {DSMessage} message
    */
   async send (to, message) {
+    if (!this._users.has(to.id)) {
+      throw new Error(`cannot send message to unconnected user ${to.id}`)
+    }
     try {
-      await this._communicator.encrypt(to, message)
+      await this._system.encrypt(to, message)
       await this._service.send(message, to)
     } catch (e) {
       console.error(e)
@@ -141,7 +132,7 @@ export class DSSecureCommunication {
   }
 
   /**
-   * Handler for key changed event from communicator.
+   * Handler for key changed event from the crypto system.
    * @param {DSKey} key
    */
   async _handleKey (key) {
@@ -155,21 +146,21 @@ export class DSSecureCommunication {
    * @param {DSKey} [key]
    */
   async _handleUser (user, action, key) {
-    if (action === 'left') {
-      if (this._users.has(user.id)) {
-        await this.disconnect(user)
-        this._emitter.emit('user-left', user)
-      }
-    } else if (action === 'seen') {
+    if (action === 'join' || action === 'seen') {
       if (this._users.has(user.id)) {
         await this.disconnect(user)
       }
       const connect = async () => await this.connect(user, key)
-      this._emitter.emit('user-seen', user, connect)
+      this._emitter.emit(`user-${action}`, user, connect)
     } else if (action === 'reset') {
       if (this._users.has(user.id)) {
         await this.disconnect(user)
         await this.connect(user, key)
+      }
+    } else if (action === 'left') {
+      if (this._users.has(user.id)) {
+        await this.disconnect(user)
+        this._emitter.emit('user-left', user)
       }
     }
   }
@@ -181,11 +172,11 @@ export class DSSecureCommunication {
    */
   async _handleMessage (from, message) {
     if (!this._users.has(from.id)) {
-      console.log(`Unconnected user ${from.id} trying to send us messages.`)
+      console.log(`Unconnected user ${from.id} trying to send us a message.`)
       return
     }
     try {
-      await this._communicator.decrypt(from, message)
+      await this._system.decrypt(from, message)
       this._emitter.emit('message-received', from, message)
     } catch (e) {
       console.error(e)

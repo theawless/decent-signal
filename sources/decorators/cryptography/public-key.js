@@ -1,18 +1,18 @@
-import { DSCommunicator } from '../../interfaces/communicator'
+import { DSCryptoSystem } from '../../interfaces/crypto-system'
 import { DSKey } from '../../models/key'
-import { DSEventEmitter } from '../../utilities/event-emitter'
+import { DSEventEmitter } from '../../utilities/events'
 
 /**
- * @event DSPublicKeyCommunicator#event:key-changed
+ * @event DSPublicKeySystem#event:key-changed
  * @param {DSUser} user
  */
 
 /**
  * Performs symmetric encryption on messages. The key for symmetric encryption
  * is asymmetrically encrypted so that only the required user can read it.
- * @implements DSCommunicator
+ * @implements DSCryptoSystem
  */
-export class DSPublicKeyCommunicator extends DSCommunicator {
+export class DSPublicKeySystem extends DSCryptoSystem {
   /**
    * @param {DSCryptography} crypto
    * @param {DSKeystore} store

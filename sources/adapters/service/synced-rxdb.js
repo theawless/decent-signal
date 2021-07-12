@@ -1,7 +1,13 @@
 import { DSKey } from '../../models/key'
 import { DSMessage } from '../../models/message'
 import { DSUser } from '../../models/user'
-import { DSEventEmitter } from '../../utilities/event-emitter'
+import { DSEventEmitter } from '../../utilities/events'
+
+/**
+ * @event DSSyncedRxDBService#event:user-join
+ * @param {DSUser} user
+ * @param {DSKey} key
+ */
 
 /**
  * @event DSSyncedRxDBService#event:user-seen
@@ -40,7 +46,7 @@ export class DSSyncedRxDBService {
     this._emitter = new DSEventEmitter()
     this._db = db
     this._user = user
-    this._onUserInserted = (change) => this._handleUser(change.documentData, 'seen')
+    this._onUserInserted = (change) => this._handleUser(change.documentData, 'join')
     this._onUserRemoved = (change) => this._handleUser(change.documentData, 'left')
     this._onUserUpdated = (change) => this._handleUser(change.documentData, 'reset')
     this._onMessageInserted = (change) => this._handleMessage(change.documentData)
@@ -95,6 +101,7 @@ export class DSSyncedRxDBService {
     this._db.messages.insert$.subscribe(this._onMessageInserted)
     await this._clearOld()
     await this.submit(key)
+    this._handleExistingUsers().then()
   }
 
   /**
@@ -128,21 +135,18 @@ export class DSSyncedRxDBService {
   }
 
   /**
-   * Get all users in the db along with their keys.
-   * @returns {Promise<Array<{user: DSUser, key: DSKey}>>}
+   * Emit seen events for existing users.
    */
-  async everyone () {
+  async _handleExistingUsers () {
     const docs = await this._db.users.find().exec()
-    const array = []
     for (const doc of docs) {
       if (doc.id === this._user.id) {
         continue
       }
       const user = new DSUser(doc.id)
       const key = new DSKey(doc.key)
-      array.push({ user, key })
+      this._emitter.emit('user-seen', user, key)
     }
-    return array
   }
 
   /**

@@ -1,6 +1,6 @@
 import { DSMessage } from '../../models/message'
 import { DSUser } from '../../models/user'
-import { DSEventEmitter } from '../../utilities/event-emitter'
+import { DSEventEmitter } from '../../utilities/events'
 
 /**
  * Describes a user on the webtorrent tracker.
@@ -143,7 +143,7 @@ export class DSWebtorrentTracker {
       const message = new DSMessage(data.answer)
       this._emitter.emit('message-received', from, message)
     } else {
-      console.log(`User ${from.id} is sending weird message.`)
+      console.log(`User ${from.id} is sending ill-formed message.`)
     }
   }
 }

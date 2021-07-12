@@ -1,9 +1,9 @@
-import { DSCommunicator } from '../../interfaces/communicator'
+import { DSCryptoSystem } from '../../interfaces/crypto-system'
 import { DSKey } from '../../models/key'
-import { DSEventEmitter } from '../../utilities/event-emitter'
+import { DSEventEmitter } from '../../utilities/events'
 
 /**
- * @event DSSharedSecretCommunicator#event:key-changed
+ * @event DSSharedSecretSystem#event:key-changed
  * @param {DSUser} user
  */
 
@@ -12,9 +12,9 @@ import { DSEventEmitter } from '../../utilities/event-emitter'
  * and both users generate a shared secret. To make this secret more secure,
  * it is used as a password and one of the user's salt is used to derive the
  * final shared secret key. This key is used to encrypt messages.
- * @implements DSCommunicator
+ * @implements DSCryptoSystem
  */
-export class DSSharedSecretCommunicator extends DSCommunicator {
+export class DSSharedSecretSystem extends DSCryptoSystem {
   /**
    * @param {DSCryptography} crypto
    * @param {DSKeystore} store
@@ -40,8 +40,8 @@ export class DSSharedSecretCommunicator extends DSCommunicator {
   async buildKey () {
     const [keys, salt] = await Promise.all([
       this._crypto.keysForAgreement(),
-      this._crypto.random()]
-    )
+      this._crypto.random()
+    ])
     this._keys = keys
     this._salt = salt
     const data = JSON.stringify({ pub: this._keys.public, salt })

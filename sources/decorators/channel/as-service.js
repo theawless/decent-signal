@@ -1,6 +1,12 @@
 import { DSKey } from '../../models/key'
 import { DSMessage } from '../../models/message'
-import { DSEventEmitter } from '../../utilities/event-emitter'
+import { DSEventEmitter } from '../../utilities/events'
+
+/**
+ * @event DSChannelAsService#event:user-join
+ * @param {DSUser} user
+ * @param {DSKey} key
+ */
 
 /**
  * @event DSChannelAsService#event:user-seen
@@ -27,6 +33,8 @@ import { DSEventEmitter } from '../../utilities/event-emitter'
 
 /**
  * Decorate a channel to act like a service.
+ * Every user shares their key as a message in this channel. When a new user
+ * joins, the accepting users send their key once again to welcome the user.
  * @implements DSService
  */
 export class DSChannelAsService {
@@ -36,8 +44,8 @@ export class DSChannelAsService {
   constructor (channel) {
     this._emitter = new DSEventEmitter()
     this._channel = channel
-    this._users = new Map() // user id to user map
-    this._keys = new Map() // user id to key map
+    this._users = new Map() // user id to user
+    this._keys = new Map() // user id to key
     this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
   }
 
@@ -64,7 +72,7 @@ export class DSChannelAsService {
    * Leave the service by broadcasting a leaving message.
    */
   async leave () {
-    const data = JSON.stringify({ type: 'leave' })
+    const data = JSON.stringify({ type: 'left' })
     await this._channel.send(new DSMessage(data))
     this._channel.events.disconnect('message-received', this._onMessageReceived)
     await this._channel.leave()
@@ -76,7 +84,7 @@ export class DSChannelAsService {
    */
   async submit (key) {
     this._key = key
-    const data = JSON.stringify({ type: 'update', data: key.data })
+    const data = JSON.stringify({ type: 'reset', data: key.data })
     await this._channel.send(new DSMessage(data))
   }
 
@@ -90,26 +98,13 @@ export class DSChannelAsService {
   }
 
   /**
-   * Get seen users in the service along with their keys.
-   * @returns {Promise<Array<{user: DSUser, key: DSKey}>>}
-   */
-  async everyone () {
-    const array = []
-    for (const user of this._users.values()) {
-      const key = this._keys.get(user.id)
-      array.add({ user, key })
-    }
-    return array
-  }
-
-  /**
    * Send message to the channel.
    * @param {DSMessage} message
    * @param {DSUser} [to]
    */
   async send (message, to) {
     message.data = JSON.stringify({ type: 'message', data: message.data })
-    return this._channel.send(message, to)
+    await this._channel.send(message, to)
   }
 
   /**
@@ -120,34 +115,44 @@ export class DSChannelAsService {
    */
   async _handleMessage (from, message) {
     const { type, data } = JSON.parse(message.data)
-    if (!type) {
-      console.log(`User ${from.id} might be in the wrong channel.`)
-      return
-    }
     if (type === 'message') {
-      message.data = data
-      this._emitter.emit('message-received', from, message)
-    } else if (type === 'join') {
-      // send our key again so that the new user can see us
-      await this.submit(this._key)
-      this._users.set(from.id, from)
-      const key = new DSKey(data)
-      this._keys.set(from.id, key)
-      this._emitter.emit('user-seen', from, key)
-    } else if (type === 'leave') {
-      this._keys.delete(from.id)
-      this._users.delete(from.id)
-      this._emitter.emit('user-left', from)
-    } else if (type === 'update') {
-      const key = new DSKey(data)
-      this._keys.set(from.id, key)
       if (this._users.has(from.id)) {
-        this._emitter.emit('user-reset', from, key)
-      } else {
-        // the user joined before us and already has our key
+        message.data = data
+        this._emitter.emit('message-received', from, message)
+      }
+    } else if (type === 'join') {
+      // send our key again so that the new user can know about us
+      const message = new DSMessage(JSON.stringify({
+        type: 'welcome',
+        data: this._key.data
+      }))
+      await this._channel.send(message)
+      const key = new DSKey(data)
+      this._keys.set(from.id, key)
+      this._users.set(from.id, from)
+      this._emitter.emit('user-join', from, key)
+    } else if (type === 'welcome') {
+      // the user is providing their key to new users
+      if (!this._users.has(from.id)) {
+        const key = new DSKey(data)
+        this._keys.set(from.id, key)
         this._users.set(from.id, from)
         this._emitter.emit('user-seen', from, key)
       }
+    } else if (type === 'reset') {
+      if (this._users.has(from.id)) {
+        const key = new DSKey(data)
+        this._keys.set(from.id, key)
+        this._emitter.emit('user-reset', from, key)
+      }
+    } else if (type === 'left') {
+      if (this._users.has(from.id)) {
+        this._keys.delete(from.id)
+        this._users.delete(from.id)
+        this._emitter.emit('user-left', from)
+      }
+    } else {
+      console.log(`User ${from.id} might be in the wrong channel.`)
     }
   }
 }
