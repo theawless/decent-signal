@@ -8,7 +8,7 @@ import { DSEventEmitter } from '../../utilities/events'
 
 /**
  * Decorator around a channel to support multiple parties.
- * The user is only allowed at a party if they know the party name and password.
+ * A user is only allowed at a party if they know the party name and pass.
  * @implements DSChannel
  */
 export class DSSecretParty {
@@ -22,12 +22,9 @@ export class DSSecretParty {
     this._channel = channel
     this._crypto = crypto
     this._options = options
-    this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
+    this._onMessageReceived = (...args) => this._handleMessage(...args).then()
   }
 
-  /**
-   * @returns {DSEventEmitter}
-   */
   get events () {
     return this._emitter
   }
@@ -36,15 +33,15 @@ export class DSSecretParty {
    * Join the party.
    */
   async join () {
+    this._channel.events.on('message-received', this._onMessageReceived)
     await this._channel.join()
-    this._channel.events.connect('message-received', this._onMessageReceived)
   }
 
   /**
    * Leave the party.
    */
   async leave () {
-    this._channel.events.disconnect('message-received', this._onMessageReceived)
+    this._channel.events.off('message-received', this._onMessageReceived)
     await this._channel.leave()
   }
 
@@ -52,8 +49,6 @@ export class DSSecretParty {
    * Send message to the channel after encrypting it for this party.
    * A new secret is created for each message by deriving it from the pass.
    * The salt is also passed along with the message.
-   * @param {DSMessage} message
-   * @param {DSUser} [to]
    */
   async send (message, to) {
     const salt = await this._crypto.random()
@@ -64,8 +59,7 @@ export class DSSecretParty {
   }
 
   /**
-   * Handler for the incoming messages on the channel.
-   * Only pass on the message if it was encrypted for this party.
+   * Emit the message if it was encrypted for this party.
    * @param {DSUser} from
    * @param {DSMessage} message
    */

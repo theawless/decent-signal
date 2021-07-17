@@ -1,8 +1,9 @@
 /**
- * Describes a user uniquely on the service.
+ * User on the service.
  */
 export class DSUser {
   /**
+   * The id should be unique.
    * @param {string} id
    */
   constructor (id) {

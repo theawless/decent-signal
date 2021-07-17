@@ -11,7 +11,7 @@
 export class DSWebrtcPeer {
   /**
    * Get internal peer object.
-   * @return {object}
+   * @returns {object}
    */
   get peer () {}
 
@@ -22,7 +22,7 @@ export class DSWebrtcPeer {
   async signal (data) {}
 
   /**
-   * Finish negotiation.
+   * Finish signalling.
    */
-  async complete () {}
+  async signalling () {}
 }

@@ -1,5 +1,5 @@
 /**
- * Describes a message on the channel.
+ * Message on the channel.
  */
 export class DSMessage {
   /**

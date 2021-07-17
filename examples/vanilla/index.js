@@ -1,5 +1,5 @@
 /**
- * Example for vanilla + web crypto + public key + matrix im + simple peer.
+ * Example for vanilla.
  */
 class Demo {
   /**
@@ -18,8 +18,9 @@ class Demo {
     const comm = new window.decentSignal.DSCommunicator(service, system)
     this._signal = new window.decentSignal.DSWebrtcSignaller(comm)
     this._peers = new Map() // user id to peer
-    this._onInitiator = (user, connect, setup) => this._handleUser(user, connect, setup, true).then()
-    this._onResponder = (user, connect, setup) => this._handleUser(user, connect, setup, false).then()
+    this._onUserJoin = (...args) => this._handleFound(...args, false).then()
+    this._onUserSeen = (...args) => this._handleFound(...args, true).then()
+    this._onUserLeft = (user) => this._handleLeft(user)
     this._setupUI()
   }
 
@@ -27,9 +28,10 @@ class Demo {
    * Start the demo.
    */
   async start () {
+    this._signal.events.on('user-join', this._onUserJoin)
+    this._signal.events.on('user-seen', this._onUserSeen)
+    this._signal.events.on('user-left', this._onUserLeft)
     await this._signal.start()
-    this._signal.events.connect('initiator', this._onInitiator)
-    this._signal.events.connect('responder', this._onResponder)
   }
 
   /**
@@ -40,35 +42,63 @@ class Demo {
       peer.peer.destroy()
     }
     this._peers.clear()
-    this._signal.events.disconnect('responder', this._onResponder)
-    this._signal.events.disconnect('initiator', this._onInitiator)
+    this._signal.events.off('user-join', this._onUserJoin)
+    this._signal.events.off('user-seen', this._onUserSeen)
+    this._signal.events.off('user-left', this._onUserLeft)
     await this._signal.stop()
   }
 
   /**
-   * Handle user updates by starting webrtc connections.
+   * Setup peer and initiate/respond to signalling.
    * @param {DSUser} user
    * @param {() => Promise<void>} connect
-   * @param {(DSWebrtcPeer) => void} setup
+   * @param {(DSSimplePeer) => void} setup
    * @param {boolean} initiator
    */
-  async _handleUser (user, connect, setup, initiator) {
-    if (this._peers.has(user.id)) {
-      console.log(`Closing old webrtc connection with user ${user.id}.`)
-      this._peers.get(user.id).peer.destroy()
-      this._peers.delete(user.id)
-    }
-    console.log(`Start connection with user ${user.id}, initiator ${initiator}.`)
+  async _handleFound (user, { connect, setup }, initiator) {
+    console.info(`User ${user.id} found, we are initiator: ${initiator}.`)
     await connect()
+    console.info(`One way connected to user ${user.id}.`)
     const peer = new window.decentSignal.DSSimplePeer(
       new window.SimplePeer({ initiator, trickle: false })
     )
-    this._peers.set(user.id, peer)
+    this._setupPeer(user, peer)
     setup(peer)
+    await peer.signalling()
+    console.info(`Webrtc connection with user ${user.id} successful.`)
+  }
+
+  /**
+   * Log when the user leaves.
+   * @param {DSUser} user
+   */
+  _handleLeft (user) {
+    console.info(`User ${user.id} left.`)
+  }
+
+  /**
+   * Set up the peer.
+   * @param {DSUser} user
+   * @param {DSSimplePeer} peer
+   */
+  _setupPeer (user, peer) {
+    if (this._peers.has(user.id)) {
+      console.info(`Closing old webrtc connection with user ${user.id}.`)
+      this._peers.get(user.id).peer.destroy()
+      this._peers.delete(user.id)
+    }
+    this._peers.set(user.id, peer)
     peer.peer.on('data', (data) => {
       this._pad.fillImageByDataURL(JSON.parse(data)).then()
     })
-    await peer.complete()
+    peer.peer.on('close', () => {
+      console.info(`Closed webrtc connection with user ${user.id}.`)
+      this._peers.delete(user.id)
+    })
+    peer.peer.on('error', () => {
+      console.info(`Errored webrtc connection with user ${user.id}.`)
+      this._peers.delete(user.id)
+    })
   }
 
   /**
@@ -81,7 +111,8 @@ class Demo {
       this.start().then(() => {
         stop.disabled = false
         setStatus('Signalling...')
-      }).catch(() => {
+      }).catch((e) => {
+        console.error(e)
         setStatus('Signalling failed...')
         start.disabled = false
       })
@@ -118,7 +149,7 @@ console.info = (...args) => {
 
 /**
  * Updates the status on the page.
- * @param text
+ * @param {string} text
  */
 function setStatus (text) {
   document.getElementById('status').innerHTML = text
@@ -191,7 +222,8 @@ async function main () {
         window.localStorage.setItem(TOKEN_KEY, client.getAccessToken())
         setStatus('Reloading page...')
         window.location.reload()
-      }).catch(() => {
+      }).catch((e) => {
+        console.error(e)
         login.disabled = false
         setStatus('Login failed...')
       })
@@ -199,10 +231,13 @@ async function main () {
   }
   const clean = (event) => {
     setStatus('Closing...')
-    demo.stop().then(() => {
-      window.removeEventListener('beforeunload', clean)
-      setStatus('Closed...')
-    })
+    if (!stop.disabled) {
+      demo.stop().then(() => {
+        window.removeEventListener('beforeunload', clean)
+        setStatus('Closed...')
+        stop.disabled = true
+      })
+    }
     event.preventDefault()
     event.returnValue = ''
   }

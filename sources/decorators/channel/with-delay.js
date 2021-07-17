@@ -20,36 +20,25 @@ export class DSChannelWithDelay {
     this._emitter = new DSEventEmitter()
     this._channel = channel
     this._delay = delay
-    this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
+    this._onMessageReceived = (...args) => this._handleMessage(...args).then()
   }
 
-  /**
-   * @returns {DSEventEmitter}
-   */
   get events () {
     return this._emitter
   }
 
-  /**
-   * Join the party.
-   */
   async join () {
+    this._channel.events.on('message-received', this._onMessageReceived)
     await this._channel.join()
-    this._channel.events.connect('message-received', this._onMessageReceived)
   }
 
-  /**
-   * Leave the party.
-   */
   async leave () {
-    this._channel.events.disconnect('message-received', this._onMessageReceived)
+    this._channel.events.off('message-received', this._onMessageReceived)
     await this._channel.leave()
   }
 
   /**
    * Send message to the channel after delaying.
-   * @param {DSMessage} message
-   * @param {DSUser} [to]
    */
   async send (message, to) {
     await new Promise(resolve => setTimeout(resolve, this._delay))
@@ -57,7 +46,6 @@ export class DSChannelWithDelay {
   }
 
   /**
-   * Handler for the incoming messages on the channel.
    * @param {DSUser} from
    * @param {DSMessage} message
    */

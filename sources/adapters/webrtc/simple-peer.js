@@ -20,9 +20,6 @@ export class DSSimplePeer {
     })
   }
 
-  /**
-   * @returns {DSEvents}
-   */
   get events () {
     return this._emitter
   }
@@ -34,10 +31,6 @@ export class DSSimplePeer {
     return this._peer
   }
 
-  /**
-   * Pass on the signal.
-   * @param {string} data
-   */
   async signal (data) {
     this._peer.signal(JSON.parse(data))
   }
@@ -45,7 +38,7 @@ export class DSSimplePeer {
   /**
    * Wait for the error and connect events.
    */
-  async complete () {
+  async signalling () {
     return new Promise((resolve, reject) => {
       this._peer.on('connect', () => resolve())
       this._peer.on('error', (err) => reject(err))

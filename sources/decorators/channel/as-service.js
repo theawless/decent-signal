@@ -44,26 +44,23 @@ export class DSChannelAsService {
   constructor (channel) {
     this._emitter = new DSEventEmitter()
     this._channel = channel
+    this._key = undefined
     this._users = new Map() // user id to user
     this._keys = new Map() // user id to key
-    this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
+    this._onMessageReceived = (...args) => this._handleMessage(...args).then()
   }
 
-  /**
-   * @returns {DSEvents}
-   */
   get events () {
     return this._emitter
   }
 
   /**
    * Join the service by broadcasting a joining message.
-   * @param {DSKey} key
    */
   async join (key) {
-    await this._channel.join()
-    this._channel.events.connect('message-received', this._onMessageReceived)
     this._key = key
+    this._channel.events.on('message-received', this._onMessageReceived)
+    await this._channel.join()
     const data = JSON.stringify({ type: 'join', data: key.data })
     await this._channel.send(new DSMessage(data))
   }
@@ -72,15 +69,14 @@ export class DSChannelAsService {
    * Leave the service by broadcasting a leaving message.
    */
   async leave () {
+    this._channel.events.off('message-received', this._onMessageReceived)
     const data = JSON.stringify({ type: 'left' })
     await this._channel.send(new DSMessage(data))
-    this._channel.events.disconnect('message-received', this._onMessageReceived)
     await this._channel.leave()
   }
 
   /**
    * Submit our key by broadcasting it through the channel.
-   * @param {DSKey} key
    */
   async submit (key) {
     this._key = key
@@ -90,25 +86,26 @@ export class DSChannelAsService {
 
   /**
    * Obtain key for an already seen user.
-   * @param {DSUser} of
-   * @returns {Promise<DSKey | undefined>}
    */
   async obtain (of) {
     return this._keys.get(of.id)
   }
 
-  /**
-   * Send message to the channel.
-   * @param {DSMessage} message
-   * @param {DSUser} [to]
-   */
   async send (message, to) {
     message.data = JSON.stringify({ type: 'message', data: message.data })
     await this._channel.send(message, to)
   }
 
   /**
-   * Handler for the incoming messages on the channel.
+   * Welcome a user by sending them our key.
+   * @param {DSUser} user
+   */
+  async _welcome (user) {
+    const data = JSON.stringify({ type: 'welcome', data: this._key.data })
+    await this._channel.send(new DSMessage(data), user)
+  }
+
+  /**
    * Take decision based on the type of the message.
    * @param {DSUser} from
    * @param {DSMessage} message
@@ -116,29 +113,20 @@ export class DSChannelAsService {
   async _handleMessage (from, message) {
     const { type, data } = JSON.parse(message.data)
     if (type === 'message') {
-      if (this._users.has(from.id)) {
-        message.data = data
-        this._emitter.emit('message-received', from, message)
-      }
+      message.data = data
+      this._emitter.emit('message-received', from, message)
     } else if (type === 'join') {
       // send our key again so that the new user can know about us
-      const message = new DSMessage(JSON.stringify({
-        type: 'welcome',
-        data: this._key.data
-      }))
-      await this._channel.send(message)
+      await this._welcome(from)
       const key = new DSKey(data)
       this._keys.set(from.id, key)
       this._users.set(from.id, from)
       this._emitter.emit('user-join', from, key)
     } else if (type === 'welcome') {
-      // the user is providing their key to new users
-      if (!this._users.has(from.id)) {
-        const key = new DSKey(data)
-        this._keys.set(from.id, key)
-        this._users.set(from.id, from)
-        this._emitter.emit('user-seen', from, key)
-      }
+      const key = new DSKey(data)
+      this._keys.set(from.id, key)
+      this._users.set(from.id, from)
+      this._emitter.emit('user-seen', from, key)
     } else if (type === 'reset') {
       if (this._users.has(from.id)) {
         const key = new DSKey(data)

@@ -1,6 +1,6 @@
 # decent-signal-example-vanilla
 
-Example for vanilla + web crypto + public key + matrix im + simple peer.
+Example for vanilla + web crypto + shared secret + matrix im + simple peer.
 
 ## Demo
 

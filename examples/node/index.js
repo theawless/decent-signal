@@ -15,9 +15,9 @@ const Crypto = require('crypto')
 const WebSocket = require('websocket').w3cwebsocket
 
 /**
- * Example for node + crypto + public key + webtorrent tracker + party.
- * The setup is such that if the ids of the users differ by more than 1 then
- * they do not connect. The crypto system chosen also depends on the party name.
+ * Example for node.
+ * The users do not connect if their ids differ by more than 3.
+ * The crypto system chosen also depends on the party name.
  */
 class Demo {
   /**
@@ -44,56 +44,61 @@ class Demo {
     const secret = new DSSecretParty(filtered, crypto, { party, pass })
     const service = new DSChannelAsService(secret)
     this._comm = new DSCommunicator(service, system)
-    this._onUserJoin = (user) => this._handleUser(user, 'join').then()
-    this._onUserSeen = (user) => this._handleUser(user, 'seen').then()
-    this._onUserLeft = (user) => this._handleUser(user, 'left').then()
-    this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
+    this._onUserFound = (...args) => this._handleFound(...args).then()
+    this._onUserLeft = (user) => this._handleLeft(user)
+    this._onMessageReceived = (...args) => this._handleMessage(...args)
   }
 
   /**
    * Start the demo.
    */
   async start () {
+    this._comm.events.on('user-join', this._onUserFound)
+    this._comm.events.on('user-seen', this._onUserFound)
+    this._comm.events.on('user-left', this._onUserLeft)
+    this._comm.events.on('message-received', this._onMessageReceived)
     await this._comm.start()
-    this._comm.events.connect('user-join', this._onUserJoin)
-    this._comm.events.connect('user-seen', this._onUserSeen)
-    this._comm.events.connect('user-left', this._onUserLeft)
-    this._comm.events.connect('message-received', this._onMessageReceived)
   }
 
   /**
    * Stop the demo.
    */
   async stop () {
-    this._comm.events.disconnect('message-received', this._onMessageReceived)
-    this._comm.events.disconnect('user-left', this._onUserLeft)
-    this._comm.events.disconnect('user-seen', this._onUserSeen)
-    this._comm.events.disconnect('user-join', this._onUserJoin)
+    this._comm.events.off('user-join', this._onUserFound)
+    this._comm.events.off('user-seen', this._onUserFound)
+    this._comm.events.off('user-left', this._onUserLeft)
+    this._comm.events.off('message-received', this._onMessageReceived)
     await this._comm.stop()
   }
 
   /**
-   * Display the incoming message.
-   * @param {DSUser} from
-   * @param {DSMessage} message
+   * Send hello to users found.
+   * @param {DSUser} user
+   * @param {() => Promise<void>} connect
    */
-  async _handleMessage (from, message) {
-    console.info(`Got message "${message.data}" from user ${from.id}.`)
+  async _handleFound (user, connect) {
+    console.info(`User ${user.id} found on the service.`)
+    await connect()
+    console.info(`Connected to user ${user.id}.`)
+    const message = new DSMessage(`Hello from user ${this._user.id}!`)
+    await this._comm.send(user, message)
   }
 
   /**
-   * Display user activity and respond to it.
+   * Log user left event.
    * @param {DSUser} user
-   * @param {string} action
    */
-  async _handleUser (user, action) {
-    console.log(`User ${user.id} action ${action} on the service.`)
-    if (action === 'join' || action === 'seen') {
-      await this._comm.connect(user)
-      console.info(`Connected to user ${user.id}.`)
-      const message = new DSMessage(`Hello! from user ${this._user.id}`)
-      await this._comm.send(user, message)
-    }
+  _handleLeft (user) {
+    console.info(`User ${user.id} left the service.`)
+  }
+
+  /**
+   * Show the incoming message.
+   * @param {DSUser} from
+   * @param {DSMessage} message
+   */
+  _handleMessage (from, message) {
+    console.info(`Got message "${message.data}" from user ${from.id}.`)
   }
 }
 
@@ -109,7 +114,9 @@ async function main () {
   // })
   // Testing with local instance of bittorrent-tracker.
   const socket = new WebSocket('ws://localhost:8000')
-  socket.onclose = (event) => console.info(`Socket closed due to ${event.code}: ${event.reason}`)
+  socket.onclose = (event) => {
+    console.info(`Socket closed due to ${event.code}: ${event.reason}`)
+  }
   await new Promise(resolve => { socket.onopen = (_) => resolve() })
   const demo = new Demo(socket, {
     peerId: 'peerIdPrefix-' + process.argv[2],

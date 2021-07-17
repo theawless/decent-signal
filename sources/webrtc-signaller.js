@@ -2,20 +2,30 @@ import { DSMessage } from './models/message'
 import { DSEventEmitter } from './utilities/events'
 
 /**
- * @event DSWebrtcSignaller#event:initiator
+ * @event DSWebrtcSignaller#event:user-join
  * @param {DSUser} user
- * @param {() => Promise<void>} connect
- * @param {(DSWebrtcPeer) => void} setup
+ * @param {{
+ *   connect: () => Promise<void>,
+ *   setup: (DSWebrtcPeer) => void
+ * }} request
  */
 
 /**
- * @event DSWebrtcSignaller#event:responder
- * @param {() => Promise<void>} connect
- * @param {(DSWebrtcPeer) => void} setup
+ * @event DSWebrtcSignaller#event:user-seen
+ * @param {DSUser} user
+ * @param {{
+ *   connect: () => Promise<void>,
+ *   setup: (DSWebrtcPeer) => void
+ * }} request
  */
 
 /**
- * Cryptographically secure signalling for webrtc.
+ * @event DSWebrtcSignaller#event:user-left
+ * @param {DSUser} user
+ */
+
+/**
+ * Cryptographically secure webrtc signalling.
  * @implements DSEventsProvider
  */
 export class DSWebrtcSignaller {
@@ -27,15 +37,12 @@ export class DSWebrtcSignaller {
     this._comm = communicator
     this._peers = new Map() // user id to peer
     this._handlers = new Map() // user id to handlers
-    this._onUserJoin = (user, connect) => this._handleUserFound(user, connect, false)
-    this._onUserSeen = (user, connect) => this._handleUserFound(user, connect, true)
-    this._onUserLeft = (user) => this._handleUserLeft(user)
-    this._onMessageReceived = (from, message) => this._handleMessage(from, message).then()
+    this._onUserJoin = (...args) => this._handleFound('join', ...args)
+    this._onUserSeen = (...args) => this._handleFound('seen', ...args)
+    this._onUserLeft = (user) => this._handleLeft(user)
+    this._onMessageReceived = (...args) => this._handleMessage(...args).then()
   }
 
-  /**
-   * @returns {DSEvents}
-   */
   get events () {
     return this._emitter
   }
@@ -44,57 +51,56 @@ export class DSWebrtcSignaller {
    * Start signalling.
    */
   async start () {
+    this._comm.events.on('user-join', this._onUserJoin)
+    this._comm.events.on('user-seen', this._onUserSeen)
+    this._comm.events.on('user-left', this._onUserLeft)
+    this._comm.events.on('message-received', this._onMessageReceived)
     await this._comm.start()
-    this._comm.events.connect('user-join', this._onUserJoin)
-    this._comm.events.connect('user-seen', this._onUserSeen)
-    this._comm.events.connect('user-left', this._onUserLeft)
-    this._comm.events.connect('message-received', this._onMessageReceived)
   }
 
   /**
    * Stop signalling.
    */
   async stop () {
-    this._comm.events.disconnect('message-received', this._onMessageReceived)
-    this._comm.events.disconnect('user-seen', this._onUserSeen)
-    this._comm.events.disconnect('user-left', this._onUserLeft)
-    this._comm.events.disconnect('user-join', this._onUserJoin)
+    this._comm.events.off('user-join', this._onUserJoin)
+    this._comm.events.off('user-seen', this._onUserSeen)
+    this._comm.events.off('user-left', this._onUserLeft)
+    this._comm.events.off('message-received', this._onMessageReceived)
     await this._comm.stop()
   }
 
   /**
-   * Notify when an existing user is seen or a new user joins.
-   * Depending on who comes first, the initiator is determined.
+   * Emit user update and ask clients to connect and setup or not.
+   * @param {string} action
    * @param {DSUser} user
    * @param {() => Promise<void>} connect
-   * @param {boolean} initiator
    */
-  _handleUserFound (user, connect, initiator) {
+  _handleFound (action, user, connect) {
     const setup = (peer) => {
       this._peers.set(user.id, peer)
-      const signal = (data) => {
+      const handler = (data) => {
         const message = new DSMessage(data)
         this._comm.send(user, message).then()
       }
-      this._handlers.set(user.id, signal)
-      peer.events.connect('signal', signal)
+      this._handlers.set(user.id, handler)
+      peer.events.on('signal', handler)
     }
-    const action = initiator ? 'initiator' : 'responder'
-    this._emitter.emit(action, user, connect, setup)
+    this._emitter.emit(`user-${action}`, user, { connect, setup })
   }
 
   /**
-   * Clear our state when user leaves.
+   * Emit user update and clear our state.
    * The webrtc connection might still not be broken.
    * @param {DSUser} user
    */
-  _handleUserLeft (user) {
+  _handleLeft (user) {
     if (this._peers.has(user.id)) {
       const peer = this._peers.get(user.id)
-      const signal = this._handlers.get(user.id)
-      peer.events.disconnect('signal', signal)
+      const handler = this._handlers.get(user.id)
+      peer.events.off('signal', handler)
       this._handlers.delete(user.id)
       this._peers.delete(user.id)
+      this._emitter.emit('user-left', user)
     }
   }
 

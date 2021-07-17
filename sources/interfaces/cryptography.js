@@ -4,8 +4,8 @@
  */
 export class DSCryptography {
   /**
-   * Generate a random string.
-   * If size is not provided, then default salt size is used.
+   * Generate a random string or salt.
+   * Default salt size is used if not provided.
    * @param {number} [size] in bytes
    * @returns {Promise<string>}
    */

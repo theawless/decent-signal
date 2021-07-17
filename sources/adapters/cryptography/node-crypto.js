@@ -1,9 +1,7 @@
 /**
- * @external module:crypto
- */
-
-/**
  * Cryptography functions that use node's built in crypto.
+ * All user text should be utf8 encoded.
+ * All binary data should be base64 encoded.
  * @implements DSCryptography
  */
 export class DSNodeCrypto {
@@ -16,8 +14,6 @@ export class DSNodeCrypto {
 
   /**
    * Generate a random string or salt.
-   * @param {number} size in bytes
-   * @returns {Promise<string>} base64 encoded
    */
   async random (size = 32) {
     return this._crypto.randomBytes(size).toString('base64')
@@ -25,7 +21,6 @@ export class DSNodeCrypto {
 
   /**
    * Generate a secret key for AES.
-   * @returns {Promise<string>} base64 encoded
    */
   async secret () {
     const key = await new Promise((resolve, reject) => {
@@ -38,9 +33,6 @@ export class DSNodeCrypto {
 
   /**
    * Derive a secret key using scrypt.
-   * @param {string} pass utf8 encoded
-   * @param {string} salt base64 encoded
-   * @returns {Promise<string>} base64 encoded
    */
   async secretFromPass (pass, salt) {
     const saltBuf = Buffer.from(salt, 'base64')
@@ -54,9 +46,6 @@ export class DSNodeCrypto {
 
   /**
    * Encrypt plain text using AES.
-   * @param {string} key base64 encoded
-   * @param {string} text utf8 encoded
-   * @returns {Promise<string>} {iv, enc, tag} base64 encoded
    */
   async secretEncrypt (key, text) {
     const keyBuf = Buffer.from(key, 'base64')
@@ -71,9 +60,6 @@ export class DSNodeCrypto {
 
   /**
    * Decrypt encrypted text using AES.
-   * @param {string} key base64 encoded
-   * @param {string} text {iv, enc, tag} base64 encoded
-   * @returns {Promise<string>} utf8 encoded
    */
   async secretDecrypt (key, text) {
     const { iv, enc, tag } = JSON.parse(text)
@@ -90,7 +76,6 @@ export class DSNodeCrypto {
 
   /**
    * Generate a public-private key pair using EC x448.
-   * @returns {Promise<{public: string, private: string}>} base64 encoded
    */
   async keysForAgreement () {
     const opts = {
@@ -110,9 +95,6 @@ export class DSNodeCrypto {
 
   /**
    * Derive a secret key using DH.
-   * @param {string} privateA base64 encoded
-   * @param {string} publicB base64 encoded
-   * @returns {Promise<string>} base64 encoded
    */
   async secretFromKeys (privateA, publicB) {
     const privateKey = this._crypto.createPrivateKey({
@@ -131,7 +113,6 @@ export class DSNodeCrypto {
 
   /**
    * Generate a public-private key pair using RSA.
-   * @returns {Promise<{public: string, private: string}>} base64 encoded
    */
   async keysForEncryption () {
     const opts = {
@@ -152,9 +133,6 @@ export class DSNodeCrypto {
 
   /**
    * Encrypt plain text using RSA public key.
-   * @param {string} key base64 encoded
-   * @param {string} text utf8 encoded
-   * @returns {Promise<string>} base64 encoded
    */
   async publicEncrypt (key, text) {
     const keyObj = this._crypto.createPublicKey({
@@ -168,9 +146,6 @@ export class DSNodeCrypto {
 
   /**
    * Decrypt encrypted text using RSA private key.
-   * @param {string} key base64 encoded
-   * @param {string} text base64 encoded
-   * @returns {Promise<string>} utf8 encoded
    */
   async privateDecrypt (key, text) {
     const keyObj = this._crypto.createPrivateKey({

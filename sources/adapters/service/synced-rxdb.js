@@ -79,29 +79,26 @@ export class DSSyncedRxDBService {
     }
   };
 
-  /**
-   * @returns {DSEvents}
-   */
   get events () {
     return this._emitter
   }
 
   /**
    * Start listening to db updates.
-   * @param {DSKey} key
    */
   async join (key) {
     await this._db.addCollections({
       users: { schema: DSSyncedRxDBService._USERS_SCHEMA },
       messages: { schema: DSSyncedRxDBService._MESSAGES_SCHEMA }
     })
+    await this.submit(key)
+    // do not use await here as we do not want to emit
+    // these events as soon as the user has joined
+    this._handleExistingUsers().then()
     this._db.users.insert$.subscribe(this._onUserInserted)
     this._db.users.remove$.subscribe(this._onUserRemoved)
     this._db.users.update$.subscribe(this._onUserUpdated)
     this._db.messages.insert$.subscribe(this._onMessageInserted)
-    await this._clearOld()
-    await this.submit(key)
-    this._handleExistingUsers().then()
   }
 
   /**
@@ -117,7 +114,6 @@ export class DSSyncedRxDBService {
 
   /**
    * Submit our key in the db.
-   * @param {DSKey} key
    */
   async submit (key) {
     const doc = { id: this._user.id, key: key.data }
@@ -126,12 +122,22 @@ export class DSSyncedRxDBService {
 
   /**
    * Obtain key for a user by querying.
-   * @param {DSUser} of
-   * @returns {Promise<DSKey | undefined>}
    */
   async obtain (of) {
     const doc = await this._db.users.findOne().where('id').eq(of.id).exec()
     return new DSKey(doc.key)
+  }
+
+  /**
+   * Send message by inserting it.
+   */
+  async send (message, to) {
+    const doc = {
+      from_id: this._user.id,
+      to_id: to ? to.id : '',
+      message: message.data
+    }
+    await this._db.messages.insert(doc)
   }
 
   /**
@@ -150,20 +156,6 @@ export class DSSyncedRxDBService {
   }
 
   /**
-   * Send message by inserting it.
-   * @param {DSMessage} message
-   * @param {DSUser} [to]
-   */
-  async send (message, to) {
-    const doc = {
-      from_id: this._user.id,
-      to_id: to ? to.id : '',
-      message: message.data
-    }
-    await this._db.messages.insert(doc)
-  }
-
-  /**
    * Clear our old user entry.
    */
   async _clearOld () {
@@ -175,7 +167,7 @@ export class DSSyncedRxDBService {
   }
 
   /**
-   * Handle the user update.
+   * Emit user action and key.
    * @param {object} entry
    * @param {string} action
    */
@@ -189,7 +181,7 @@ export class DSSyncedRxDBService {
   }
 
   /**
-   * Handle the incoming message.
+   * Emit message if it is meant for us.
    * @param {object} entry
    */
   _handleMessage (entry) {

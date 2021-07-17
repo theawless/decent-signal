@@ -11,7 +11,7 @@ import {
 } from 'decent-signal'
 
 /**
- * Example for bundler + web crypto + public key + RxDB + webrtc.
+ * Example for bundler.
  */
 class Demo {
   /**
@@ -29,26 +29,26 @@ class Demo {
     this._users = new Map() // user id to user
     this._peers = new Map() // user id to peer
     this._feeds = new Map() // user id to feed
-    this._onSignalInitiator = (user, connect, setup) => this._handleSignalInitiate(user, connect, setup).then()
-    this._onSignalResponder = (user, connect, setup) => this._handleSignalRespond(user, connect, setup).then()
+    this._onSignalUserJoin = (...args) => this._handleSignalUser(...args, false).then()
+    this._onSignalUserSeen = (...args) => this._handleSignalUser(...args, true).then()
     this._onServiceUserJoin = (user) => this._handleServiceUser(user, 'join')
     this._onServiceUserSeen = (user) => this._handleServiceUser(user, 'seen')
     this._onServiceUserLeft = (user) => this._handleServiceUser(user, 'left')
-    this._onServiceMessageReceived = (from, message) => this._handleServiceMessage(from, message)
+    this._onServiceMessageReceived = (...args) => this._handleServiceMessage(...args)
   }
 
   /**
    * Start the demo.
    */
   async start () {
-    await this._signal.start()
-    this._signal.events.connect('initiator', this._onSignalInitiator)
-    this._signal.events.connect('responder', this._onSignalResponder)
-    this._service.events.connect('user-join', this._onServiceUserJoin)
-    this._service.events.connect('user-seen', this._onServiceUserSeen)
-    this._service.events.connect('user-left', this._onServiceUserLeft)
-    this._service.events.connect('message-received', this._onServiceMessageReceived)
     this._setupUI()
+    this._signal.events.on('user-join', this._onSignalUserJoin)
+    this._signal.events.on('user-seen', this._onSignalUserSeen)
+    this._service.events.on('user-join', this._onServiceUserJoin)
+    this._service.events.on('user-seen', this._onServiceUserSeen)
+    this._service.events.on('user-left', this._onServiceUserLeft)
+    this._service.events.on('message-received', this._onServiceMessageReceived)
+    await this._signal.start()
   }
 
   /**
@@ -64,13 +64,22 @@ class Demo {
       peer.close()
     }
     this._peers.clear()
-    this._service.events.disconnect('message-received', this._onServiceMessageReceived)
-    this._service.events.disconnect('user-left', this._onServiceUserLeft)
-    this._service.events.disconnect('user-seen', this._onServiceUserSeen)
-    this._service.events.disconnect('user-join', this._onServiceUserJoin)
-    this._signal.events.disconnect('responder', this._onSignalResponder)
-    this._signal.events.disconnect('initiator', this._onSignalInitiator)
-    await this._comm.stop()
+    this._signal.events.off('user-join', this._onSignalUserJoin)
+    this._signal.events.off('user-seen', this._onSignalUserSeen)
+    this._service.events.off('user-join', this._onServiceUserJoin)
+    this._service.events.off('user-seen', this._onServiceUserSeen)
+    this._service.events.off('user-left', this._onServiceUserLeft)
+    this._service.events.off('message-received', this._onServiceMessageReceived)
+    await this._signal.stop()
+  }
+
+  /**
+   * The users do not connect if their ids differ by more than 3.
+   * @param {DSUser} user
+   * @returns {boolean}
+   */
+  _shouldConnect (user) {
+    return Math.abs(parseInt(this._user.id) - parseInt(user.id)) <= 3
   }
 
   /**
@@ -79,7 +88,7 @@ class Demo {
    * @param {string} action
    */
   _handleServiceUser (user, action) {
-    console.log(`User ${user.id} action ${action} on the service.`)
+    console.info(`User ${user.id} action ${action} on the service.`)
     if (action === 'join' || action === 'seen') {
       this._users.set(user.id, user)
     } else {
@@ -89,40 +98,34 @@ class Demo {
   }
 
   /**
-   * Initiate signalling and create the feed.
+   * Setup peer and feed and initiate/respond to signalling.
    * @param {DSUser} user
    * @param {() => Promise<void>} connect
-   * @param {(DSWebrtcPeer) => void} setup
+   * @param {(DSManualPeer) => void} setup
+   * @param {boolean} initiator
    */
-  async _handleSignalInitiate (user, connect, setup) {
-    console.log(`Initiate signalling with user ${user.id}.`)
+  async _handleSignalUser (user, { connect, setup }, initiator) {
+    if (!this._shouldConnect(user)) {
+      console.info(`Ignoring the user ${user.id}.`)
+      return
+    }
     const peer = new window.RTCPeerConnection()
     this._setupPeer(user, peer)
-    await connect()
-    const manual = new DSManualPeer(window, peer, true)
+    const manual = new DSManualPeer(window, peer, initiator)
     setup(manual)
-    const feed = peer.createDataChannel('feed')
-    this._setupFeed(user, feed)
-    await manual.complete()
-  }
-
-  /**
-   * Respond to signalling and accept the feed.
-   * @param {DSUser} user
-   * @param {() => Promise<void>} connect
-   * @param {(DSWebrtcPeer) => void} setup
-   */
-  async _handleSignalRespond (user, connect, setup) {
-    console.log(`Respond to signalling from user ${user.id}.`)
-    const peer = new window.RTCPeerConnection()
-    this._setupPeer(user, peer)
+    console.info(`User ${user.id} found, we are initiator: ${initiator}.`)
     await connect()
-    const manual = new DSManualPeer(window, peer, false)
-    setup(manual)
-    peer.addEventListener('datachannel', (event) => {
-      this._setupFeed(user, event.channel)
-    })
-    await manual.complete()
+    console.info(`One way connected to user ${user.id}.`)
+    if (initiator) {
+      const feed = peer.createDataChannel('feed')
+      this._setupFeed(user, feed)
+    } else {
+      peer.addEventListener('datachannel', (event) => {
+        this._setupFeed(user, event.channel)
+      })
+    }
+    await manual.signalling()
+    console.info(`Webrtc connection with user ${user.id} successful.`)
   }
 
   /**
@@ -132,7 +135,7 @@ class Demo {
    */
   _setupPeer (user, peer) {
     if (this._peers.has(user.id)) {
-      console.log(`Closing old webrtc connection with user ${user.id}.`)
+      console.info(`Closing old webrtc connection with user ${user.id}.`)
       this._peers.get(user.id).close()
     }
     this._peers.set(user.id, peer)
@@ -197,8 +200,9 @@ class Demo {
    */
   _updateServicePeers () {
     let text = ''
-    for (const user of this._users.keys()) {
-      text += `${user}\n`
+    for (const user of this._users.values()) {
+      const connect = this._shouldConnect(user) ? 'connect' : 'ignore'
+      text += `${user.id}: will ${connect}\n`
     }
     document.getElementById('service-peers').textContent = text
   }
@@ -209,7 +213,7 @@ class Demo {
   _updateWebrtcPeers () {
     let text = ''
     for (const [user, peer] of this._peers) {
-      text += `${user}: ${peer.connectionState}\n`
+      text += `${user}: state ${peer.connectionState}\n`
     }
     document.getElementById('webrtc-peers').textContent = text
   }

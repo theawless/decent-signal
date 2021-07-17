@@ -36,9 +36,6 @@ export class DSManualPeer {
     })
   }
 
-  /**
-   * @returns {DSEvents}
-   */
   get events () {
     return this._emitter
   }
@@ -51,8 +48,7 @@ export class DSManualPeer {
   }
 
   /**
-   * Extract offer/answer/ice from the signal and utilise it accordingly.
-   * @param {string} data
+   * Extract offer/answer/ice from the signal and use it.
    */
   async signal (data) {
     const signal = JSON.parse(data)
@@ -69,13 +65,15 @@ export class DSManualPeer {
     } else if (signal.ice) {
       const ice = new this._wrtc.RTCIceCandidate(signal.ice)
       await this._peer.addIceCandidate(ice)
+    } else {
+      console.log('Ignoring unexpected signal type.')
     }
   }
 
   /**
    * Wait for terminal state of the connection change event.
    */
-  async complete () {
+  async signalling () {
     return new Promise((resolve, reject) => {
       this._peer.addEventListener('connectionstatechange', () => {
         if (this._peer.connectionState === 'connected') {

@@ -1,5 +1,7 @@
 /**
  * Cryptography functions that use web crypto.
+ * All user text should be utf8 encoded.
+ * All binary data should be base64 encoded.
  * @implements DSCryptography
  */
 export class DSWebCrypto {
@@ -14,8 +16,6 @@ export class DSWebCrypto {
 
   /**
    * Generate a random string or salt.
-   * @param {number} size in bytes
-   * @returns {Promise<string>} base64 encoded
    */
   async random (size = 32) {
     const buf = this._crypto.getRandomValues(new Uint8Array(size))
@@ -24,7 +24,6 @@ export class DSWebCrypto {
 
   /**
    * Generate a secret key for AES.
-   * @returns {Promise<string>} base64 encoded
    */
   async secret () {
     const key = await this._crypto.subtle.generateKey(
@@ -38,9 +37,6 @@ export class DSWebCrypto {
 
   /**
    * Derive a secret key using PBKDF2.
-   * @param {string} pass utf8 encoded
-   * @param {string} salt base64 encoded
-   * @returns {Promise<string>} base64 encoded
    */
   async secretFromPass (pass, salt) {
     const saltBuf = this._array(salt)
@@ -64,9 +60,6 @@ export class DSWebCrypto {
 
   /**
    * Encrypt plain text using AES.
-   * @param {string} key base64 encoded
-   * @param {string} text utf8 encoded
-   * @returns {Promise<string>} {iv, enc} base64 encoded
    */
   async secretEncrypt (key, text) {
     const keyObj = await this._crypto.subtle.importKey(
@@ -90,9 +83,6 @@ export class DSWebCrypto {
 
   /**
    * Decrypt encrypted text using AES.
-   * @param {string} key base64 encoded
-   * @param {string} text {iv, enc} base64 encoded
-   * @returns {Promise<string>} utf8 encoded
    */
   async secretDecrypt (key, text) {
     const { iv, enc } = JSON.parse(text)
@@ -116,7 +106,6 @@ export class DSWebCrypto {
 
   /**
    * Generate a public-private key pair using EC P-521.
-   * @returns {Promise<{public: string, private: string}>} base64 encoded
    */
   async keysForAgreement () {
     const keyPair = await this._crypto.subtle.generateKey(
@@ -136,9 +125,6 @@ export class DSWebCrypto {
 
   /**
    * Derive a secret key using DH.
-   * @param {string} privateA base64 encoded
-   * @param {string} publicB base64 encoded
-   * @returns {Promise<string>} base64 encoded
    */
   async secretFromKeys (privateA, publicB) {
     const [privateKey, publicKey] = await Promise.all([
@@ -167,7 +153,6 @@ export class DSWebCrypto {
 
   /**
    * Generate a public-private key pair using RSA.
-   * @returns {Promise<{public: string, private: string}>} base64 encoded
    */
   async keysForEncryption () {
     const keyPair = await this._crypto.subtle.generateKey(
@@ -192,9 +177,6 @@ export class DSWebCrypto {
 
   /**
    * Encrypt plain text using RSA public key.
-   * @param {string} key base64 encoded
-   * @param {string} text utf8 encoded
-   * @returns {Promise<string>} base64 encoded
    */
   async publicEncrypt (key, text) {
     const keyObj = await this._crypto.subtle.importKey(
@@ -214,9 +196,6 @@ export class DSWebCrypto {
 
   /**
    * Decrypt encrypted text using RSA private key.
-   * @param {string} key base64 encoded
-   * @param {string} text base64 encoded
-   * @returns {Promise<string>} utf8 encoded
    */
   async privateDecrypt (key, text) {
     const keyObj = await this._crypto.subtle.importKey(
@@ -236,7 +215,7 @@ export class DSWebCrypto {
 
   /**
    * Convert a utf8 string to byte array.
-   * @param {string} string uf8 encoded
+   * @param {string} string
    * @returns {Uint8Array}
    */
   _encode (string) {
@@ -246,7 +225,7 @@ export class DSWebCrypto {
   /**
    * Convert a byte array to utf8 string.
    * @param {Uint8Array} array
-   * @returns {string} uf8 encoded
+   * @returns {string}
    */
   _decode (array) {
     return this._decoder.decode(array)
@@ -254,7 +233,7 @@ export class DSWebCrypto {
 
   /**
    * Convert a base64 string to byte array.
-   * @param {string} string base64 encoded
+   * @param {string} string
    * @returns {Uint8Array}
    */
   _array (string) {
@@ -269,7 +248,7 @@ export class DSWebCrypto {
   /**
    * Convert a byte array to base64 string.
    * @param {Uint8Array} array
-   * @returns {string} base64 encoded
+   * @returns {string}
    */
   _base64 (array) {
     const binary = new Array(array.length)

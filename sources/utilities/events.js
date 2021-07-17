@@ -1,21 +1,21 @@
 /**
- * Events that can be connected to.
+ * Events that can be listened to.
  * @interface
  */
 export class DSEvents {
   /**
-   * Connect to an event.
+   * Listen to an event.
    * @param {string} event
    * @param {(...*) => void} handler
    */
-  connect (event, handler) {}
+  on (event, handler) {}
 
   /**
-   * Disconnect from an event.
+   * Stop listening to an event.
    * @param {string} event
    * @param {(...*) => void} handler
    */
-  disconnect (event, handler) {}
+  off (event, handler) {}
 }
 
 /**
@@ -34,9 +34,6 @@ export class DSEventsProvider {
  * @implements DSEvents
  */
 export class DSEventEmitter {
-  /**
-   * Plain old constructor.
-   */
   constructor () {
     this._handlers = new Map() // event to set of handlers
   }
@@ -53,12 +50,9 @@ export class DSEventEmitter {
   }
 
   /**
-   * Connect to an event.
    * Args to the handler will be same as those passed while emitting the event.
-   * @param {string} event
-   * @param {(...*) => void} handler
    */
-  connect (event, handler) {
+  on (event, handler) {
     if (this._handlers.has(event)) {
       const set = this._handlers.get(event)
       if (set.has(event)) {
@@ -73,12 +67,9 @@ export class DSEventEmitter {
   }
 
   /**
-   * Disconnect from an event.
-   * This should be the same handler that was passed in the connect method.
-   * @param {string} event
-   * @param {(...*) => void} handler
+   * This must be the same handler that was given while listening to the event.
    */
-  disconnect (event, handler) {
+  off (event, handler) {
     if (this._handlers.has(event)) {
       const set = this._handlers.get(event)
       if (!set.delete(handler)) {

@@ -22,12 +22,10 @@ export class DSMatrixIM {
     this._emitter = new DSEventEmitter()
     this._client = client
     this._options = options
+    this._timestamp = undefined
     this._onRoomEvent = (event) => this._handleEvent(event)
   }
 
-  /**
-   * @returns {DSEvents}
-   */
   get events () {
     return this._emitter
   }
@@ -39,8 +37,9 @@ export class DSMatrixIM {
     await this._client.clearStores() // need to clear the cache status
     const filter = await this._client.createFilter(this._buildFilter())
     this._client.startClient({ filter })
-    await this._client.joinRoom(this._options.room)
     this._client.on('Room.timeline', this._onRoomEvent)
+    await this._client.joinRoom(this._options.room, { syncRoom: false })
+    this._timestamp = Date.now()
   }
 
   /**
@@ -54,8 +53,6 @@ export class DSMatrixIM {
 
   /**
    * Send message by creating an event in the room.
-   * @param {DSMessage} message
-   * @param {DSUser} [to]
    */
   async send (message, to) {
     const content = {
@@ -85,10 +82,14 @@ export class DSMatrixIM {
   }
 
   /**
-   * Handler for timeline event.
+   * Parse room messages and emit if it is meant for us.
    * @param {MatrixEvent} event
    */
   _handleEvent (event) {
+    if (event.getTs() < this._timestamp) {
+      // if the client gives us old events, ignore them
+      return
+    }
     if (event.getType() !== 'm.room.message' || event.getContent().msgtype !== 'm.text') {
       return
     }

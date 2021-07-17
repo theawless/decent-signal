@@ -1,12 +1,12 @@
 /**
- * Emitted when we see a user who has just joined.
+ * Emitted when a user has just joined.
  * @event DSKeyserver#event:user-join
  * @param {DSUser} user
  * @param {DSKey} key
  */
 
 /**
- * Emitted when we see the users who joined before us.
+ * Emitted when we see a user who joined before us.
  * @event DSKeyserver#event:user-seen
  * @param {DSUser} user
  * @param {DSKey} key

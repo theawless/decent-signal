@@ -1,4 +1,3 @@
-import { DSCryptoSystem } from '../../interfaces/crypto-system'
 import { DSKey } from '../../models/key'
 import { DSEventEmitter } from '../../utilities/events'
 
@@ -8,32 +7,27 @@ import { DSEventEmitter } from '../../utilities/events'
  */
 
 /**
- * Performs symmetric encryption on messages. The key for symmetric encryption
- * is asymmetrically encrypted so that only the required user can read it.
+ * Do symmetric encryption on messages and asymmetric encryption on the secret.
  * @implements DSCryptoSystem
  */
-export class DSPublicKeySystem extends DSCryptoSystem {
+export class DSPublicKeySystem {
   /**
    * @param {DSCryptography} crypto
    * @param {DSKeystore} store
    */
   constructor (crypto, store) {
-    super()
     this._emitter = new DSEventEmitter()
     this._crypto = crypto
     this._store = store
+    this._keys = undefined
   }
 
-  /**
-   * @returns {DSEvents}
-   */
   get events () {
     return this._emitter
   }
 
   /**
-   * Build our public key.
-   * @returns {Promise<DSKey>}
+   * Build our key pair and send only the public key.
    */
   async buildKey () {
     this._keys = await this._crypto.keysForEncryption()
@@ -42,8 +36,6 @@ export class DSPublicKeySystem extends DSCryptoSystem {
 
   /**
    * Accept public key from a user.
-   * @param {DSUser} from
-   * @param {DSKey} key
    */
   async acceptKey (from, key) {
     await this._store.save(from, key)
@@ -51,18 +43,15 @@ export class DSPublicKeySystem extends DSCryptoSystem {
 
   /**
    * Remove public key for a user.
-   * @param {DSUser} of
    */
   async removeKey (of) {
     await this._store.remove(of)
   }
 
   /**
-   * Encrypt plain message for a user.
    * First the message is encrypted with a new secret and then
-   * the secret is encrypted with public key of the user.
-   * @param {DSUser} to
-   * @param {DSMessage} message
+   * the secret is encrypted with public key of the user. Both the
+   * encrypted secret and the encrypted message are then sent.
    */
   async encrypt (to, message) {
     const [key, secret] = await Promise.all([
@@ -80,16 +69,13 @@ export class DSPublicKeySystem extends DSCryptoSystem {
   }
 
   /**
-   * Decrypt encrypted message for a user.
    * First decrypt the secret using our private key and
-   * then decrypt the message with the secret.
-   * @param {DSUser} from
-   * @param {DSMessage} message
+   * then decrypt the message with the decrypted secret.
    */
   async decrypt (from, message) {
     const { sec, enc } = JSON.parse(message.data)
     if (!sec || !enc) {
-      throw new Error(`text was not encrypted properly from user ${from.id}`)
+      throw new Error(`user ${from.id} did not properly encrypt the message`)
     }
     const secret = await this._crypto.privateDecrypt(this._keys.private, sec)
     message.data = await this._crypto.secretDecrypt(secret, enc)

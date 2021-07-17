@@ -9,7 +9,7 @@ export class DSWebtorrentTrackerUser extends DSUser {
   /**
    * @param {string} peerId 20 byte string
    * @param {string} infoHash 20 byte string
-   * @param {number} numWant number of expected users
+   * @param {number} numWant number of expected users for an infoHash
    */
   constructor (peerId, infoHash, numWant = 5) {
     super(peerId)
@@ -47,10 +47,8 @@ export class DSWebtorrentTrackerUser extends DSUser {
  */
 
 /**
- * Utilise a webtorrent tracker like a channel.
- * A torrent tracker does not make sure users are authenticated.
- * More information can be found here:
- * https://www.bittorrent.org/beps/bep_0003.html
+ * Utilise a webtorrent tracker like a channel. A torrent tracker does not
+ * make sure users are authenticated. Hence always use SecretParty with this.
  * @implements DSChannel
  */
 export class DSWebtorrentTracker {
@@ -66,9 +64,6 @@ export class DSWebtorrentTracker {
     this._onMessage = (event) => this._handleMessage(JSON.parse(event.data))
   }
 
-  /**
-   * @returns {DSEvents}
-   */
   get events () {
     return this._emitter
   }
@@ -77,25 +72,23 @@ export class DSWebtorrentTracker {
    * Start listening to tracker updates.
    */
   async join () {
-    this._socket.addEventListener('message', this._onMessage)
     this._announce({ event: 'started' })
+    this._socket.addEventListener('message', this._onMessage)
   }
 
   /**
    * Stop listening to tracker updates.
    */
   async leave () {
-    this._announce({ event: 'stopped' })
     this._socket.removeEventListener('message', this._onMessage)
+    this._announce({ event: 'stopped' })
   }
 
   /**
-   * Send message by updating the tracker.
+   * Send message by announcing on the tracker.
    * These trackers help establish webrtc signalling over websockets.
    * They expect that only offers and answers are sent through them,
    * but for our use case we have hack-ily sent our encrypted messages.
-   * @param {DSMessage} message
-   * @param {DSUser} [to]
    */
   async send (message, to) {
     if (to) {
@@ -125,7 +118,7 @@ export class DSWebtorrentTracker {
   }
 
   /**
-   * Handle the incoming message.
+   * Emit the message if it is meant for us.
    * @param {object} data
    */
   _handleMessage (data) {
