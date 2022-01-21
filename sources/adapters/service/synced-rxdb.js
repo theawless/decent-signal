@@ -58,8 +58,9 @@ export class DSSyncedRxDBService {
   static get _USERS_SCHEMA () {
     return {
       version: 0,
+      primaryKey: 'id',
       properties: {
-        id: { type: 'string', primary: true },
+        id: { type: 'string' },
         key: { type: 'string' }
       }
     }
@@ -71,7 +72,9 @@ export class DSSyncedRxDBService {
   static get _MESSAGES_SCHEMA () {
     return {
       version: 0,
+      primaryKey: 'id',
       properties: {
+        id: { type: 'string' },
         from_id: { type: 'string' },
         to_id: { type: 'string' },
         message: { type: 'string' }
@@ -133,6 +136,7 @@ export class DSSyncedRxDBService {
    */
   async send (message, to) {
     const doc = {
+      id: Math.random().toString(36), // good enough here
       from_id: this._user.id,
       to_id: to ? to.id : '',
       message: message.data

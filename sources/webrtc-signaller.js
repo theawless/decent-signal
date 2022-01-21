@@ -2,21 +2,9 @@ import { DSMessage } from './models/message'
 import { DSEventEmitter } from './utilities/events'
 
 /**
- * @event DSWebrtcSignaller#event:user-join
+ * @event DSWebrtcSignaller#event:user-found
  * @param {DSUser} user
- * @param {{
- *   connect: () => Promise<void>,
- *   setup: (DSWebrtcPeer) => void
- * }} request
- */
-
-/**
- * @event DSWebrtcSignaller#event:user-seen
- * @param {DSUser} user
- * @param {{
- *   connect: () => Promise<void>,
- *   setup: (DSWebrtcPeer) => void
- * }} request
+ * @param {(DSWebrtcPeer) => Promise<void>} connect
  */
 
 /**
@@ -70,13 +58,14 @@ export class DSWebrtcSignaller {
   }
 
   /**
-   * Emit user update and ask clients to connect and setup or not.
+   * Emit user update and ask clients to connect or not.
    * @param {string} action
    * @param {DSUser} user
-   * @param {() => Promise<void>} connect
+   * @param {() => Promise<void>} communicate
    */
-  _handleFound (action, user, connect) {
-    const setup = (peer) => {
+  _handleFound (action, user, communicate) {
+    const connect = async (peer) => {
+      await communicate()
       this._peers.set(user.id, peer)
       const handler = (data) => {
         const message = new DSMessage(data)
@@ -84,8 +73,10 @@ export class DSWebrtcSignaller {
       }
       this._handlers.set(user.id, handler)
       peer.events.on('signal', handler)
+      peer.setup(action === 'seen')
+      await peer.signalling()
     }
-    this._emitter.emit(`user-${action}`, user, { connect, setup })
+    this._emitter.emit('user-found', user, connect)
   }
 
   /**

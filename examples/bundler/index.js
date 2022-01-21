@@ -29,8 +29,7 @@ class Demo {
     this._users = new Map() // user id to user
     this._peers = new Map() // user id to peer
     this._feeds = new Map() // user id to feed
-    this._onSignalUserJoin = (...args) => this._handleSignalUser(...args, false).then()
-    this._onSignalUserSeen = (...args) => this._handleSignalUser(...args, true).then()
+    this._onSignalUserFound = (...args) => this._handleSignalUser(...args).then()
     this._onServiceUserJoin = (user) => this._handleServiceUser(user, 'join')
     this._onServiceUserSeen = (user) => this._handleServiceUser(user, 'seen')
     this._onServiceUserLeft = (user) => this._handleServiceUser(user, 'left')
@@ -42,8 +41,7 @@ class Demo {
    */
   async start () {
     this._setupUI()
-    this._signal.events.on('user-join', this._onSignalUserJoin)
-    this._signal.events.on('user-seen', this._onSignalUserSeen)
+    this._signal.events.on('user-found', this._onSignalUserFound)
     this._service.events.on('user-join', this._onServiceUserJoin)
     this._service.events.on('user-seen', this._onServiceUserSeen)
     this._service.events.on('user-left', this._onServiceUserLeft)
@@ -64,8 +62,7 @@ class Demo {
       peer.close()
     }
     this._peers.clear()
-    this._signal.events.off('user-join', this._onSignalUserJoin)
-    this._signal.events.off('user-seen', this._onSignalUserSeen)
+    this._signal.events.off('user-found', this._onSignalUserFound)
     this._service.events.off('user-join', this._onServiceUserJoin)
     this._service.events.off('user-seen', this._onServiceUserSeen)
     this._service.events.off('user-left', this._onServiceUserLeft)
@@ -100,32 +97,29 @@ class Demo {
   /**
    * Setup peer and feed and initiate/respond to signalling.
    * @param {DSUser} user
-   * @param {() => Promise<void>} connect
-   * @param {(DSManualPeer) => void} setup
-   * @param {boolean} initiator
+   * @param {(DSWebrtcPeer) => Promise<void>} connect
    */
-  async _handleSignalUser (user, { connect, setup }, initiator) {
+  async _handleSignalUser (user, connect) {
     if (!this._shouldConnect(user)) {
       console.info(`Ignoring the user ${user.id}.`)
       return
     }
-    const peer = new window.RTCPeerConnection()
-    this._setupPeer(user, peer)
-    const manual = new DSManualPeer(window, peer, initiator)
-    setup(manual)
-    console.info(`User ${user.id} found, we are initiator: ${initiator}.`)
-    await connect()
-    console.info(`One way connected to user ${user.id}.`)
-    if (initiator) {
-      const feed = peer.createDataChannel('feed')
-      this._setupFeed(user, feed)
-    } else {
-      peer.addEventListener('datachannel', (event) => {
-        this._setupFeed(user, event.channel)
-      })
+    const factory = (initiator) => {
+      console.info(`Connecting with ${user.id}, we are initiator: ${initiator}.`)
+      const peer = new window.RTCPeerConnection()
+      this._setupPeer(user, peer)
+      if (initiator) {
+        const feed = peer.createDataChannel('feed')
+        this._setupFeed(user, feed)
+      } else {
+        peer.addEventListener('datachannel', (event) => {
+          this._setupFeed(user, event.channel)
+        })
+      }
+      return peer
     }
-    await manual.signalling()
-    console.info(`Webrtc connection with user ${user.id} successful.`)
+    await connect(new DSManualPeer(window, factory))
+    console.info(`Webrtc connect with user ${user.id} successful`)
   }
 
   /**
@@ -245,7 +239,7 @@ class Demo {
  * Async main function.
  */
 async function main () {
-  const db = await window.RxDB.createRxDatabase({ name: 'demo', adapter: 'idb' })
+  const db = await window.RxDB.createRxDatabase({ name: 'demo', storage: window.RxDB.getRxStoragePouch('idb') })
   const args = new URLSearchParams(window.location.search)
   const demo = new Demo(db, { id: args.get('id') })
   await demo.start()

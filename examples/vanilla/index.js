@@ -18,8 +18,7 @@ class Demo {
     const comm = new window.decentSignal.DSCommunicator(service, system)
     this._signal = new window.decentSignal.DSWebrtcSignaller(comm)
     this._peers = new Map() // user id to peer
-    this._onUserJoin = (...args) => this._handleFound(...args, false).then()
-    this._onUserSeen = (...args) => this._handleFound(...args, true).then()
+    this._onUserFound = (...args) => this._handleFound(...args).then()
     this._onUserLeft = (user) => this._handleLeft(user)
     this._setupUI()
   }
@@ -28,8 +27,7 @@ class Demo {
    * Start the demo.
    */
   async start () {
-    this._signal.events.on('user-join', this._onUserJoin)
-    this._signal.events.on('user-seen', this._onUserSeen)
+    this._signal.events.on('user-found', this._onUserFound)
     this._signal.events.on('user-left', this._onUserLeft)
     await this._signal.start()
   }
@@ -39,11 +37,10 @@ class Demo {
    */
   async stop () {
     for (const peer of this._peers.values()) {
-      peer.peer.destroy()
+      peer.destroy()
     }
     this._peers.clear()
-    this._signal.events.off('user-join', this._onUserJoin)
-    this._signal.events.off('user-seen', this._onUserSeen)
+    this._signal.events.off('user-found', this._onUserFound)
     this._signal.events.off('user-left', this._onUserLeft)
     await this._signal.stop()
   }
@@ -51,20 +48,16 @@ class Demo {
   /**
    * Setup peer and initiate/respond to signalling.
    * @param {DSUser} user
-   * @param {() => Promise<void>} connect
-   * @param {(DSSimplePeer) => void} setup
-   * @param {boolean} initiator
+   * @param {(DSSimplePeer) => Promise<void>} connect
    */
-  async _handleFound (user, { connect, setup }, initiator) {
-    console.info(`User ${user.id} found, we are initiator: ${initiator}.`)
-    await connect()
-    console.info(`One way connected to user ${user.id}.`)
-    const peer = new window.decentSignal.DSSimplePeer(
-      new window.SimplePeer({ initiator, trickle: false })
-    )
-    this._setupPeer(user, peer)
-    setup(peer)
-    await peer.signalling()
+  async _handleFound (user, connect) {
+    const factory = (initiator) => {
+      console.info(`Connecting with ${user.id}, we are initiator: ${initiator}.`)
+      const peer = new window.SimplePeer({ initiator, trickle: false })
+      this._setupPeer(user, peer)
+      return peer
+    }
+    await connect(new window.decentSignal.DSSimplePeer(factory))
     console.info(`Webrtc connection with user ${user.id} successful.`)
   }
 
@@ -79,23 +72,23 @@ class Demo {
   /**
    * Set up the peer.
    * @param {DSUser} user
-   * @param {DSSimplePeer} peer
+   * @param {SimplePeer} peer
    */
   _setupPeer (user, peer) {
     if (this._peers.has(user.id)) {
       console.info(`Closing old webrtc connection with user ${user.id}.`)
-      this._peers.get(user.id).peer.destroy()
+      this._peers.get(user.id).destroy()
       this._peers.delete(user.id)
     }
     this._peers.set(user.id, peer)
-    peer.peer.on('data', (data) => {
+    peer.on('data', (data) => {
       this._pad.fillImageByDataURL(JSON.parse(data)).then()
     })
-    peer.peer.on('close', () => {
+    peer.on('close', () => {
       console.info(`Closed webrtc connection with user ${user.id}.`)
       this._peers.delete(user.id)
     })
-    peer.peer.on('error', () => {
+    peer.on('error', () => {
       console.info(`Errored webrtc connection with user ${user.id}.`)
       this._peers.delete(user.id)
     })
@@ -128,8 +121,8 @@ class Demo {
     this._pad.observer.on('drawEnd', (_) => {
       const data = JSON.stringify(this._pad.toDataURL())
       for (const peer of this._peers.values()) {
-        if (peer.peer.connected) {
-          peer.peer.send(data)
+        if (peer.connected) {
+          peer.send(data)
         }
       }
     })

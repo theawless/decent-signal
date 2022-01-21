@@ -10,14 +10,11 @@ import { DSEventEmitter } from '../../utilities/events'
  */
 export class DSSimplePeer {
   /**
-   * @param {SimplePeer} peer
+   * @param {(boolean) => SimplePeer} factory
    */
-  constructor (peer) {
+  constructor (factory) {
     this._emitter = new DSEventEmitter()
-    this._peer = peer
-    this._peer.on('signal', (data) => {
-      this._emitter.emit('signal', JSON.stringify(data))
-    })
+    this._factory = factory
   }
 
   get events () {
@@ -25,10 +22,13 @@ export class DSSimplePeer {
   }
 
   /**
-   * @returns {SimplePeer}
+   * Build and set up the internal peer instance.
    */
-  get peer () {
-    return this._peer
+  setup (initiator) {
+    this._peer = this._factory(initiator)
+    this._peer.on('signal', (data) => {
+      this._emitter.emit('signal', JSON.stringify(data))
+    })
   }
 
   async signal (data) {

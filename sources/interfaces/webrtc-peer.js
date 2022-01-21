@@ -10,10 +10,10 @@
  */
 export class DSWebrtcPeer {
   /**
-   * Get internal peer object.
-   * @returns {object}
+   * Set up the internal peer object.
+   @param {boolean} initiator
    */
-  get peer () {}
+  setup (initiator) {}
 
   /**
    * Accept the signal from other side.

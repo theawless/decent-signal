@@ -8,18 +8,27 @@ import { DSEventEmitter } from '../../utilities/events'
 /**
  * Signalling helper for the rtc peer connection.
  * @implements DSWebrtcPeer
- * @todo Can perfect negotiation be used here?
  */
 export class DSManualPeer {
   /**
    * @param {object} wrtc
-   * @param {RTCPeerConnection} peer
-   * @param {boolean} initiator
+   * @param {(boolean) => RTCPeerConnection} factory
    */
-  constructor (wrtc, peer, initiator) {
+  constructor (wrtc, factory) {
     this._emitter = new DSEventEmitter()
     this._wrtc = wrtc
-    this._peer = peer
+    this._factory = factory
+  }
+
+  get events () {
+    return this._emitter
+  }
+
+  /**
+   * Listen to various internal peer instance events.
+   */
+  setup (initiator) {
+    this._peer = this._factory(initiator)
     if (initiator) {
       this._peer.addEventListener('negotiationneeded', async () => {
         const offer = await this._peer.createOffer()
@@ -34,17 +43,6 @@ export class DSManualPeer {
         this._emitter.emit('signal', data)
       }
     })
-  }
-
-  get events () {
-    return this._emitter
-  }
-
-  /**
-   * @returns {RTCPeerConnection}
-   */
-  get peer () {
-    return this._peer
   }
 
   /**

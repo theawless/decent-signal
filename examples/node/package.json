@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "server": "bittorrent-tracker --ws",
+    "server": "bittorrent-tracker --ws --port 8000",
     "node-0000": "node index peerId0 infoHash0 party0 pass0",
     "node-1000": "node index peerId1 infoHash0 party0 pass0",
     "node-2000": "node index peerId2 infoHash0 party0 pass0",

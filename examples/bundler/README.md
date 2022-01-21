@@ -4,7 +4,7 @@ Example for bundler + web crypto + public key + RxDB + manual webrtc.
 
 ## Demo
 
-* Serve with `npx serve` in the directory
+* Serve with `npx serve -p 5000` in the directory
 * Open [node-0](http://localhost:5000/?id=0)
 * Open [node-1](http://localhost:5000/?id=1)
 * Open [node-2](http://localhost:5000/?id=2)
